@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lockheed Lander</title>
+  <meta name="description" content="A retro aircraft landing game with six aircraft, paint unlocks, and a secret SR-71.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23101b2b'/%3E%3Cpath d='M7 33 42 25 58 32 42 39Z' fill='%23ffdb7a'/%3E%3Cpath d='m22 32-8 16 29-12Z' fill='%23bd673d'/%3E%3C/svg%3E">
+  <style>
+    :root { color-scheme: dark; font-family: ui-monospace, Consolas, monospace; background:#101b2b; color:#f8edca; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; padding:14px; }
+    main { width:min(100%,1000px); }
+    h1 { margin:0 0 8px; font-size:clamp(22px,4vw,38px); letter-spacing:.1em; color:#ffdb7a; text-shadow:3px 3px #6b4270; }
+    .sub { margin:0 0 12px; color:#b7cadd; line-height:1.5; }
+    .panel { border:4px solid #748ca2; background:#15243b; box-shadow:8px 8px #080f1c; padding:12px; }
+    .toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:12px; }
+    label { display:grid; gap:5px; font-size:12px; color:#cbd9e6; flex:1 1 150px; }
+    select,button { font:inherit; border:2px solid #b8cad3; background:#243b54; color:#fff3d1; padding:9px 10px; border-radius:0; min-height:42px; }
+    button { cursor:pointer; background:#bd673d; border-color:#f4be6f; font-weight:700; }
+    button:hover,button:focus-visible { background:#d47d49; }
+    button:disabled { opacity:.55; cursor:default; }
+    .screen { position:relative; overflow:hidden; border:4px solid #080f1c; background:#83c6db; }
+    canvas { width:100%; height:auto; display:block; image-rendering:pixelated; touch-action:manipulation; }
+    #message { min-height:2.5em; padding-top:10px; line-height:1.5; color:#ffdf94; }
+    .help { margin:12px 0 0; color:#b7cadd; line-height:1.5; font-size:13px; }
+    @media (max-width:600px) { body{display:block;padding:8px} .panel{padding:8px;box-shadow:none} .toolbar{gap:7px} label{flex:1 1 42%;font-size:14px} select{width:100%} button{width:100%} .help{font-size:14px} }
+  </style>
+</head>
+<body>
+<main>
+  <h1>LOCKHEED LANDER</h1>
+  <p class="sub">Fly any of five aircraft. Land each one to unlock the SR-71. Dodge DARB and LHM hangars, towers, mountains, and aircraft. 2026 JReeves / Suttonware</p>
+  <div class="panel">
+    <div class="toolbar">
+      <label>Aircraft<select id="aircraft">
+        <option value="c130">C-130</option><option value="f35">F-35</option>
+        <option value="c5">C-5</option><option value="blackhawk">Black Hawk</option>
+        <option value="f22">F-22</option>
+        <option value="sr71" disabled>SR-71 — land all five to unlock</option>
+      </select></label>
+      <label>Paint scheme<select id="paint"><option value="0">Green & Silver</option></select></label>
+      <button id="start">START FLIGHT</button>
+    </div>
+    <div class="screen"><canvas id="game" width="960" height="540" aria-label="Lockheed Lander game"></canvas></div>
+    <div id="message" role="status">Choose a plane and start your flight.</div>
+    <p class="help">Click the game to climb, or tap it on a phone. Each click or tap gives one lift. During the final approach, reach the runway marker at a safe height and a gentle vertical speed. A successful landing unlocks one new paint scheme for that aircraft. Land the C-130, F-35, C-5, Black Hawk, and F-22 once each to unlock the SR-71. Progress is saved in this browser. 2026 JReeves / Suttonware</p>
+  </div>
+</main>
+<script>
+(() => {
+  'use strict';
+  const canvas = document.querySelector('#game');
+  const ctx = canvas.getContext('2d');
+  const aircraftSelect = document.querySelector('#aircraft');
+  const paintSelect = document.querySelector('#paint');
+  const startButton = document.querySelector('#start');
+  const message = document.querySelector('#message');
+  const W = 960, H = 540, GROUND = 482, PLANE_X = 215;
+  const START_X = 700, SPACING = 410, COUNT = 9, RUNWAY_X = START_X + COUNT * SPACING + 220;
+  const PAINTS = [
+    { name:'Standard', body:'#d4d5c2', accent:'#526674', glass:'#32465e' },
+    { name:'Desert', body:'#d2ac75', accent:'#8f684a', glass:'#35495e' },
+    { name:'Night Ops', body:'#536377', accent:'#263846', glass:'#9db9c4' },
+    { name:'High Visibility', body:'#f3c95a', accent:'#e66747', glass:'#32465e' },
+    { name:'Arcade Ace', body:'#e2a3d0', accent:'#755dca', glass:'#4c396d' }
+  ];
+  const C130_PAINTS = [
+    { name:'Green & Silver', body:'#647956', accent:'#c6cbd0', glass:'#243d4c', underside:'#c6cbd0' },
+    { name:'Fat Albert Blue', body:'#173a8e', accent:'#f4c948', glass:'#9ed0de', underside:'#173a8e' },
+    { name:'Desert Cargo', body:'#b49a70', accent:'#e1cc9a', glass:'#35495e', underside:'#dbc8a7' },
+    { name:'Arctic Rescue', body:'#e1e7df', accent:'#e56d43', glass:'#38506a', underside:'#b6c5cf' },
+    { name:'Spectre Black', body:'#14171c', accent:'#242a32', glass:'#465669', underside:'#1b2026' }
+  ];
+  const BLACKHAWK_PAINTS = [
+    { name:'Olive Green', body:'#596b3c', accent:'#35462d', glass:'#314858' },
+    { name:'Desert Tan', body:'#b8a17a', accent:'#79694f', glass:'#35495e' },
+    { name:'Woodland', body:'#40563a', accent:'#283c34', glass:'#526971' },
+    { name:'Storm Gray', body:'#78848a', accent:'#4b5b62', glass:'#344c5b' },
+    { name:'Black Ops', body:'#111417', accent:'#1c2228', glass:'#303b44' }
+  ];
+  const SR71_PAINTS = [{ name:'Blackbird', body:'#141820', accent:'#242b34', glass:'#5b7789' }];
+  const paintsFor = id => id === 'c130' ? C130_PAINTS : id === 'blackhawk' ? BLACKHAWK_PAINTS : id === 'sr71' ? SR71_PAINTS : PAINTS;
+  const ORIGINAL_IDS = ['c130','f35','c5','blackhawk','f22'];
+  const PLANES = [
+    { id:'c130', name:'C-130', speed:3.15, lift:-5.65, gravity:.28, w:90, h:38, score:1 },
+    { id:'f35', name:'F-35', speed:4.0, lift:-6.1, gravity:.31, w:48, h:18, score:2 },
+    { id:'c5', name:'C-5', speed:2.7, lift:-5.1, gravity:.27, w:162, h:60, score:3 },
+    { id:'blackhawk', name:'Black Hawk', speed:4.25, lift:-6.35, gravity:.33, w:78, h:38, score:4 },
+    { id:'f22', name:'F-22', speed:6.0, lift:-6.3, gravity:.34, w:50, h:18, score:5 },
+    { id:'sr71', name:'SR-71', speed:7.6, lift:-6.7, gravity:.4, w:98, h:28, score:6 }
+  ];
+  let unlocked = {};
+  try { unlocked = JSON.parse(localStorage.getItem('flappy-plane-paints-v1') || '{}') || {}; } catch (_) { unlocked = {}; }
+  const isSR71Unlocked = () => ORIGINAL_IDS.every(id => Number(unlocked[id])>=2);
+  // Keep the menus in the HTML so attachment previews never show empty lists.
+  let state = 'menu', plane = PLANES[0], paint = C130_PAINTS[0];
+  let player, camera = 0, passed = 0, airPassed = 0, score = 0, lastTime = 0, accumulator = 0, landingFrames = 0;
+  const groundTypes = ['hangar','tower','hangar','mountain','hangar','tower','hangar','mountain','tower'];
+  let hangarCount=0;
+  const groundObstacles = groundTypes.map((type,i) => ({
+    x: START_X + i * SPACING, type, firstTower:i===1,
+    hangarLabel:type==='hangar' ? (hangarCount++%2===0 ? 'DARB' : 'LHM') : null,
+    width: type==='mountain' ? 164 : type==='hangar' ? 150 : 70,
+    top: type==='mountain' ? 250 : type==='tower' ? 304 : 377
+  }));
+  function makeAirObstacles() {
+    let lastType='', streak=0, planeColors=0, heliColors=0;
+    const slots=[0,2,4,6,8];
+    return slots.map((slot,i) => {
+      let type=Math.random()<.5 ? 'lightplane' : 'helicopter';
+      if(streak>=2) type=lastType==='lightplane' ? 'helicopter' : 'lightplane';
+      streak=type===lastType ? streak+1 : 1; lastType=type;
+      const color=type==='lightplane' ? planeColors++%2 : heliColors++%2;
+      return {x:START_X+slot*SPACING+205, y:[54,193,60,207,52][i],
+        type,color,width:type==='lightplane'?62:56,height:type==='lightplane'?34:37};
+    });
+  }
+  let airObstacles=makeAirObstacles();
+  const skyDots = Array.from({length:65}, (_, i) => ({x:(i*173+43)%960,y:(i*67+29)%250,size:i%3===0?3:2}));
+
+  function refreshPaints() {
+    const schemes=paintsFor(aircraftSelect.value);
+    const count = Math.max(1,Math.min(schemes.length,Number(unlocked[aircraftSelect.value]) || 1));
+    paintSelect.replaceChildren();
+    for(let i=0;i<count;i++) {
+      const option=document.createElement('option'); option.value=i; option.textContent=schemes[i].name;
+      paintSelect.append(option);
+    }
+    paint=schemes[Number(paintSelect.value)];
+  }
+  function refreshAircraftOptions() {
+    const sr71Option=aircraftSelect.querySelector('option[value="sr71"]');
+    const ready=isSR71Unlocked();
+    sr71Option.disabled=!ready;
+    sr71Option.textContent=ready?'SR-71':'SR-71 — land all five to unlock';
+  }
+  function setMessage(text) { message.textContent=text; }
+  function newFlight() {
+    if(aircraftSelect.value==='sr71' && !isSR71Unlocked()) {
+      aircraftSelect.value='c130';refreshPaints();
+    }
+    plane=PLANES.find(p=>p.id===aircraftSelect.value) || PLANES[0];
+    paint=paintsFor(plane.id)[Number(paintSelect.value)] || paintsFor(plane.id)[0];
+    player={y:276,vy:0}; camera=0; passed=0; airPassed=0; score=0; landingFrames=0;
+    airObstacles=makeAirObstacles();
+    state='flying'; aircraftSelect.disabled=true; paintSelect.disabled=true; startButton.textContent='RESTART';
+    setMessage(`${plane.name} airborne! Click or tap the game to climb. Runway approach: stay near the gold marker.`);
+  }
+  function finish(success, reason='') {
+    if(state!=='flying' && state!=='landing') return;
+    state=success?'landed':'crashed';
+    aircraftSelect.disabled=false; paintSelect.disabled=false; startButton.textContent='FLY AGAIN';
+    if(success) {
+      const wasSR71Unlocked=isSR71Unlocked();
+      score += 100 + plane.score*20;
+      const schemes=paintsFor(plane.id);
+      const old=Math.max(1,Math.min(schemes.length,Number(unlocked[plane.id])||1));
+      const next=Math.min(schemes.length,old+1);
+      unlocked[plane.id]=next;
+      try { localStorage.setItem('flappy-plane-paints-v1',JSON.stringify(unlocked)); } catch (_) {}
+      refreshAircraftOptions();
+      refreshPaints();
+      const unlockNotice=!wasSR71Unlocked && isSR71Unlocked() ? ' SR-71 UNLOCKED!' : '';
+      setMessage(`LANDED! Score ${score}. ${next>old ? `Unlocked ${schemes[next-1].name} paint for the ${plane.name}!` : 'All paint schemes unlocked for this aircraft.'}${unlockNotice}`);
+    } else setMessage(`FLIGHT ENDED: ${reason} Score ${score}. Press Fly Again to retry.`);
+  }
+  function flap() {
+    if(state==='menu'||state==='crashed'||state==='landed') { newFlight(); return; }
+    if(state==='flying') player.vy=plane.lift;
+  }
+  startButton.addEventListener('click',newFlight);
+  aircraftSelect.addEventListener('change',()=>{plane=PLANES.find(p=>p.id===aircraftSelect.value)||PLANES[0];refreshPaints();});
+  paintSelect.addEventListener('change',()=>paint=paintsFor(aircraftSelect.value)[Number(paintSelect.value)]);
+  canvas.addEventListener('pointerdown',e=>{e.preventDefault();flap();});
+  document.addEventListener('keydown',e=>{
+    if(e.code==='Space' && !e.repeat && document.activeElement.tagName!=='SELECT' && document.activeElement.tagName!=='BUTTON') {
+      e.preventDefault();flap();
+    }
+  });
+
+  function rect(x,y,w,h,color) { ctx.fillStyle=color;ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h)); }
+  function polygon(points,color) {
+    ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(Math.round(points[0][0]),Math.round(points[0][1]));
+    for(let i=1;i<points.length;i++) ctx.lineTo(Math.round(points[i][0]),Math.round(points[i][1]));
+    ctx.closePath();ctx.fill();
+  }
+  function label(text,x,y,size=18,color='#fff3d1',align='left') {
+    ctx.font=`bold ${size}px monospace`;ctx.textAlign=align;ctx.fillStyle='#243347';ctx.fillText(text,x+2,y+2);
+    ctx.fillStyle=color;ctx.fillText(text,x,y);ctx.textAlign='left';
+  }
+  function terrain() {
+    rect(0,0,W,H,'#82c4d5');
+    rect(0,340,W,95,'#9bd5d1');
+    for(const dot of skyDots) rect(dot.x-Math.floor(camera*.12)%W,dot.y,dot.size,dot.size,'#d1e8dd');
+    for(let j=-1;j<9;j++) {
+      const x=j*160-(Math.floor(camera*.15)%160);
+      rect(x,422,95,60,'#7ca3a1');rect(x+13,410,66,12,'#a8c5bd');
+    }
+    rect(0,GROUND,W,H-GROUND,'#455e56');rect(0,GROUND,W,10,'#70a878');
+    for(let i=-1;i<30;i++) { const x=i*43-(Math.floor(camera)%43);rect(x,GROUND+19,17,3,'#658472'); }
+  }
+  function drawPlane(x,y,p,scheme) {
+    const w=p.w,h=p.h;
+    ctx.save();ctx.translate(Math.round(x),Math.round(y));
+    if(p.id==='sr71') {
+      ctx.scale(w/100,h/48);
+      const flame=8+Math.floor(camera/28)%8;
+      polygon([[-48,-9],[-48-flame,-5],[-46,-2],[-48-flame,2],[-48,5]],'#f49b3e');
+      polygon([[-48,-5],[-52-flame/2,-2],[-47,1]],'#ffe18a');
+      polygon([[-40,-7],[-46,-24],[-35,-21],[-27,-5]],scheme.accent);
+      polygon([[-40,6],[-46,23],[-35,20],[-27,4]],scheme.accent);
+      polygon([[-39,-5],[-10,-17],[4,-17],[20,-7],[49,-1],[20,5],[4,16],[-10,16],[-39,5]],scheme.body);
+      polygon([[-36,-4],[-9,-11],[7,-9],[25,-3],[49,-1],[21,2],[6,9],[-9,10],[-36,4]],'#252a32');
+      polygon([[8,-7],[22,-4],[31,-2],[13,-1]],scheme.glass);
+      polygon([[-40,-4],[-15,-13],[-8,-12],[-25,-2]],'#303640');
+      polygon([[-40,4],[-15,12],[-8,11],[-25,2]],'#303640');
+      rect(-46,-6,5,12,'#535b62');
+    } else if(p.id==='c130') {
+      ctx.scale(w/94,h/52);
+      // Cargo fuselage, high wing, tall conventional tail, four propeller disks.
+      polygon([[-18,-5],[6,-29],[32,-27],[16,-4]],scheme.accent);
+      polygon([[-42,-7],[-42,-34],[-31,-34],[-24,-10]],scheme.body);
+      polygon([[-45,-3],[-49,7],[-25,5],[-21,-3]],scheme.accent);
+      polygon([[-44,-8],[-35,-13],[24,-14],[40,-10],[47,-4],[46,3],[39,9],[23,12],[-32,11],[-44,5]],scheme.body);
+      polygon([[-40,5],[41,5],[36,11],[22,13],[-31,12]],scheme.underside);
+      polygon([[-19,-3],[0,21],[29,20],[15,-3]],scheme.accent);
+      rect(31,-9,6,5,scheme.glass);rect(39,-7,5,4,scheme.glass);
+      for(const [px,py] of [[-19,-7],[-6,-12],[8,-17],[23,-22]]) {
+        rect(px-2,py-2,10,7,scheme.body);
+        rect(px-6,py-12,3,25,'#2a3036');
+        rect(px-8,py-10,7,3,'#aab5b7');rect(px-8,py+8,7,3,'#aab5b7');
+        rect(px-6,py-1,5,4,scheme.accent);
+      }
+    } else if(p.id==='c5') {
+      ctx.scale(w/132,h/65);
+      // Swept wings, high T-tail, tapered nose and four underwing jet engines.
+      polygon([[-19,-7],[13,-34],[43,-31],[21,-5]],scheme.accent);
+      polygon([[-58,-10],[-55,-44],[-42,-41],[-34,-12]],scheme.body);
+      polygon([[-61,-44],[-25,-44],[-29,-39],[-55,-38]],scheme.accent);
+      polygon([[-64,-9],[-52,-15],[35,-15],[54,-10],[65,-2],[64,6],[53,12],[31,15],[-50,13],[-63,7]],scheme.body);
+      polygon([[-56,6],[57,6],[49,13],[29,16],[-50,14]],scheme.accent);
+      polygon([[-18,0],[8,29],[45,26],[22,-1]],scheme.accent);
+      rect(49,-10,6,5,scheme.glass);rect(57,-7,5,4,scheme.glass);
+      for(const [px,py] of [[0,-18],[22,-23],[11,20],[33,22]]) {
+        polygon([[px-9,py-3],[px+6,py-3],[px+10,py+1],[px+7,py+5],[px-7,py+5],[px-10,py+1]],scheme.body);
+        rect(px+5,py-1,4,5,'#364454');
+      }
+    } else if(p.id==='blackhawk') {
+      ctx.scale(w/98,h/58);
+      // Tail boom and tail rotor remain visible even at the small game size.
+      polygon([[-48,-2],[-16,-8],[-16,7],[-48,4]],scheme.body);
+      polygon([[-51,-16],[-44,-17],[-41,6],[-52,6]],scheme.accent);
+      rect(-58,-11,17,3,scheme.accent);rect(-51,-18,3,17,scheme.accent);
+      rect(-53,-13,7,7,'#9da9a2');rect(-51,-11,3,3,'#30383f');
+      polygon([[-22,-9],[12,-14],[30,-9],[39,0],[32,11],[19,17],[-16,15],[-26,7]],scheme.body);
+      polygon([[10,-11],[28,-8],[35,0],[27,8],[9,8]],scheme.glass);
+      rect(-12,-6,15,17,scheme.accent);rect(-9,-3,11,13,scheme.body);
+      rect(-2,-25,4,13,scheme.accent);rect(-44,-28,87,3,scheme.accent);
+      rect(-10,-30,24,3,scheme.accent);rect(-4,-26,9,5,'#85928d');
+      rect(-17,17,4,8,scheme.accent);rect(24,16,4,9,scheme.accent);
+      rect(-22,25,57,3,scheme.accent);rect(-19,22,4,3,scheme.accent);rect(29,22,4,3,scheme.accent);
+    } else {
+      polygon([[-w*.5,-h*.12],[-w*.34,-h*.33],[w*.25,-h*.31],[w*.5,0],[w*.26,h*.28],[-w*.37,h*.3]],scheme.body);
+      polygon([[-w*.23,0],[-w*.39,h*.48],[w*.04,h*.26],[w*.2,0]],scheme.accent);
+      polygon([[-w*.22,-h*.06],[-w*.37,-h*.48],[-w*.03,-h*.27],[w*.13,-h*.04]],scheme.accent);
+      rect(w*.14,-h*.23,w*.17,h*.3,scheme.glass);
+      rect(-w*.48,-h*.12,w*.16,4,scheme.accent);
+    }
+    ctx.restore();
+  }
+  function groundArt(o,sx) {
+    if(o.type==='hangar') {
+      rect(sx-70,o.top+20,140,GROUND-o.top-20,'#67717a');
+      polygon([[sx-77,o.top+23],[sx,o.top],[sx+77,o.top+23]],'#313f50');
+      rect(sx-71,o.top+20,142,7,'#3a4c5e');
+      rect(sx-48,o.top+56,96,GROUND-o.top-56,'#384758');
+      rect(sx-45,o.top+59,90,6,'#536477');
+      label(o.hangarLabel,sx,o.top+48,21,'#ffda81','center');
+    } else if(o.type==='tower') {
+      rect(sx-12,o.top+37,24,GROUND-o.top-37,'#63737b');
+      rect(sx-30,o.top+20,60,20,'#344959');
+      rect(sx-35,o.top+14,70,7,'#2c3f4d');
+      rect(sx-25,o.top+23,17,10,'#a7d9d7');rect(sx-5,o.top+23,16,10,'#a7d9d7');rect(sx+14,o.top+23,11,10,'#a7d9d7');
+      rect(sx-3,o.top,6,14,'#344959');rect(sx-5,o.top-4,10,5,'#e8ad73');
+      rect(sx-17,GROUND-11,34,11,'#344959');
+      if(o.firstTower) {
+        ctx.font='bold 11px monospace';ctx.textAlign='center';ctx.fillStyle='#35464d';
+        for(let i=0;i<7;i++) ctx.fillText('e483914'[i],Math.round(sx),Math.round(o.top+58+i*13));
+        ctx.textAlign='left';
+      }
+    } else {
+      polygon([[sx-o.width/2,GROUND],[sx,o.top],[sx+o.width/2,GROUND]],'#465c60');
+      polygon([[sx,o.top],[sx-31,o.top+89],[sx+32,o.top+89]],'#bbd5ca');
+      polygon([[sx+10,o.top+60],[sx+o.width/2,GROUND],[sx+34,GROUND]],'#354c52');
+    }
+  }
+  function airObstacleArt(a,sx) {
+    ctx.save();ctx.translate(Math.round(sx),Math.round(a.y));
+    ctx.scale(a.width/64,a.height/40);
+    if(a.type==='lightplane') {
+      const color=a.color===0?'#d44f45':'#79c7e5';
+      // Small high-wing two-seat plane, with black propeller and landing wheels.
+      polygon([[-28,-3],[-27,-18],[-19,-17],[-18,-2]],color);
+      polygon([[-29,-3],[-32,4],[-17,4],[-13,-2]],'#f1f1e7');
+      polygon([[-27,-6],[18,-7],[29,-3],[32,2],[27,7],[-23,7]],'#f1f1e7');
+      rect(-22,1,49,3,color);
+      polygon([[-17,-16],[21,-16],[25,-12],[-21,-12]],color);
+      polygon([[-4,-12],[0,-12],[15,5],[12,5]],'#8c9ca2');
+      rect(13,-5,7,5,'#364b5a');rect(22,-4,4,4,'#364b5a');
+      rect(32,-14,3,28,'#171d25');rect(30,-1,6,4,'#171d25');
+      rect(-15,8,2,7,'#242b30');rect(17,8,2,7,'#242b30');
+      rect(-18,15,7,5,'#171d25');rect(14,15,7,5,'#171d25');
+    } else {
+      const color=a.color===0?'#f2f1e9':'#cc4a42';
+      // Two-seat helicopter; both rotors and the skids remain black.
+      polygon([[-29,-2],[-13,-5],[-11,5],[-29,4]],color);
+      polygon([[-30,-11],[-24,-11],[-25,5],[-31,5]],color);
+      rect(-36,-6,13,2,'#171d25');rect(-30,-12,2,15,'#171d25');
+      polygon([[-17,-7],[8,-10],[23,-6],[30,2],[23,11],[7,13],[-15,10],[-21,3]],color);
+      polygon([[2,-8],[17,-7],[25,1],[19,8],[2,8]],'#455f6c');
+      rect(-10,-3,3,13,a.color===0?'#b8c0bd':'#8f3431');
+      rect(-2,-18,3,10,'#171d25');rect(-30,-21,60,3,'#171d25');
+      rect(-14,13,2,7,'#171d25');rect(18,13,2,7,'#171d25');
+      rect(-20,20,48,3,'#171d25');
+    }
+    ctx.restore();
+  }
+  function runway() {
+    const sx=RUNWAY_X-camera;
+    if(sx>W+800||sx<-W) return;
+    rect(Math.max(0,sx-120),GROUND-5,Math.min(W,900),14,'#273947');
+    for(let i=0;i<13;i++) rect(sx-70+i*65,GROUND-1,29,4,'#f3df9b');
+    rect(sx-5,GROUND-34,10,34,'#e6b966');rect(sx-15,GROUND-39,30,7,'#f7e9b7');
+    label('LAND',sx,GROUND-49,15,'#ffe39a','center');
+    // Gold guide appears well before the runway, giving the player time to line up.
+    if(state==='flying' && sx<W+200 && sx>0) {
+      rect(Math.max(0,sx-205),342,Math.min(205,sx),4,'#f3d87b');
+      label('SAFE APPROACH 300-390',Math.max(18,sx-245),332,13,'#fff1ad');
+    }
+  }
+  function update() {
+    if(state==='landing') {
+      landingFrames++;
+      camera+=plane.speed*.75;
+      player.y+=(GROUND-plane.h*.65-player.y)*.047;
+      if(landingFrames>85) finish(true);
+      return;
+    }
+    if(state!=='flying') return;
+    player.vy=Math.min(7.3,player.vy+plane.gravity);
+    player.y+=player.vy;
+    camera+=plane.speed;
+    const halfW=plane.w*.41,halfH=plane.h*.42;
+    if(player.y-halfH<17) {finish(false,'You climbed too high.');return;}
+    if(player.y+halfH>GROUND-1) {finish(false,'You hit the ground.');return;}
+    for(let i=0;i<groundObstacles.length;i++) {
+      const o=groundObstacles[i],sx=o.x-camera,dx=Math.abs(sx-PLANE_X);
+      if(sx+o.width/2+halfW<PLANE_X && i>=passed) {passed=i+1;score+=10*plane.score;}
+      if(dx<o.width/2+halfW) {
+        // The mountain follows its visible slope; buildings have flat collision tops.
+        const top=o.type==='mountain' ? o.top+Math.max(0,dx-halfW)/(o.width/2)*(GROUND-o.top) : o.top;
+        if(player.y+halfH>top) {
+          finish(false,o.type==='hangar'?'You hit a hangar.':o.type==='tower'?'You hit a control tower.':'You hit a mountain.');return;
+        }
+      }
+    }
+    for(let i=0;i<airObstacles.length;i++) {
+      const a=airObstacles[i],sx=a.x-camera;
+      if(sx+a.width/2+halfW<PLANE_X && i>=airPassed) {airPassed=i+1;score+=5*plane.score;}
+      if(Math.abs(sx-PLANE_X)<a.width*.46+halfW && Math.abs(player.y-a.y)<a.height*.42+halfH) {
+        finish(false,`You hit a small ${a.type==='lightplane'?'plane':'helicopter'}. Fly above or below it.`);return;
+      }
+    }
+    if(RUNWAY_X-camera<=PLANE_X) {
+      if(player.y>=300 && player.y<=390 && Math.abs(player.vy)<=4.6) {
+        state='landing';setMessage('Good approach! Landing...');
+      } else finish(false,'Missed the safe approach. Aim for the gold guide with a gentle descent.');
+    }
+  }
+  function draw() {
+    terrain();
+    for(const o of groundObstacles) {
+      const sx=o.x-camera;
+      if(sx>-110&&sx<W+110) groundArt(o,sx);
+    }
+    for(const aircraft of airObstacles) {
+      const sx=aircraft.x-camera;
+      if(sx>-70&&sx<W+70) airObstacleArt(aircraft,sx);
+    }
+    runway();
+    const preview=state==='menu';
+    drawPlane(PLANE_X,preview?270:player.y,plane,paint);
+    rect(12,12,348,58,'#24354a');
+    label(`${plane.name}  SCORE ${score}`,23,37,20);
+    const progress=Math.max(0,Math.min(1,(camera+PLANE_X)/RUNWAY_X));
+    rect(23,50,320,8,'#495c70');rect(23,50,320*progress,8,'#f3c95a');
+    if(preview) {
+      rect(273,174,414,157,'#172a40');
+      label('LOCKHEED LANDER',480,216,29,'#ffdf88','center');
+      label('SELECT A PLANE + START FLIGHT',480,253,17,'#f4efcd','center');
+      label('CLICK / TAP = CLIMB',480,281,16,'#add8dd','center');
+      label('2026 JReeves / Suttonware',480,310,13,'#c0cbd1','center');
+    } else if(state==='landed'||state==='crashed') {
+      rect(313,188,334,83,'#172a40');
+      label(state==='landed'?'LANDED!':'FLIGHT ENDED',480,226,25,state==='landed'?'#bce89f':'#ffd18c','center');
+      label('SCORE '+score,480,256,18,'#f4efcd','center');
+    }
+  }
+  function frame(now) {
+    if(!lastTime) lastTime=now;
+    accumulator=Math.min(100,accumulator+Math.min(100,now-lastTime)); lastTime=now;
+    while(accumulator>=1000/60) {update();accumulator-=1000/60;}
+    draw();requestAnimationFrame(frame);
+  }
+  refreshAircraftOptions();refreshPaints();player={y:270,vy:0};setMessage('Choose a plane and start your flight.');requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
