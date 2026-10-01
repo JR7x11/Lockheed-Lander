@@ -941,9 +941,9 @@
             paint = paintsFor(plane.id)[Number(paintSelect.value)] || paintsFor(plane.id)[0];
           }
           if (world.landmark === "bigChicken")
-            setMessage("World 1 — DARB / Marietta: Big Chicken added.");
+            setMessage("World 1 — DARB / Marietta selected.");
           else if (world.landmark === "boot")
-            setMessage("World 2 — FTW / Fort Worth: Cowboy boot added.");
+            setMessage("World 2 — FTW / Fort Worth selected.");
           else if (world.id === "space")
             setMessage("World 4 — Space: Space Shuttle mission.");
           else
@@ -2194,7 +2194,7 @@
             rect(-22, 0, 4, 4, "#e5524b");
             ctx.restore(); return;
           } else if (a.type === "lightplane") {
-            const color = a.color === 0 ? "#d44f45" : "#79c7e5";
+            const color = a.color === 0 ? "#d44f45" : (getWorldConfig().id === "darb" ? "#3f9b58" : "#79c7e5");
             polygon(
               [
                 [-28, -3],
@@ -2247,10 +2247,23 @@
             rect(22, -4, 4, 4, "#364b5a");
             rect(32, -14, 3, 28, "#171d25");
             rect(30, -1, 6, 4, "#171d25");
-            rect(-15, 8, 2, 7, "#242b30");
-            rect(17, 8, 2, 7, "#242b30");
-            rect(-18, 15, 7, 5, "#171d25");
-            rect(14, 15, 7, 5, "#171d25");
+            // Cessna-style fixed landing gear: two slim struts and two round wheels.
+            ctx.strokeStyle = "#242b30";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-11, 7); ctx.lineTo(-16, 15);
+            ctx.moveTo(12, 7); ctx.lineTo(17, 15);
+            ctx.stroke();
+            for (const wx of [-17, 18]) {
+              ctx.beginPath();
+              ctx.arc(wx, 17, 4, 0, Math.PI * 2);
+              ctx.fillStyle = "#171d25";
+              ctx.fill();
+              ctx.beginPath();
+              ctx.arc(wx, 17, 1.5, 0, Math.PI * 2);
+              ctx.fillStyle = "#8d969d";
+              ctx.fill();
+            }
           } else {
             const color = a.color === 0 ? "#f2f1e9" : "#cc4a42";
             polygon(
