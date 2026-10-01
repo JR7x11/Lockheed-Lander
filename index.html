@@ -1820,8 +1820,9 @@
             ctx.lineWidth = 4;
             ctx.lineCap = "round";
             ctx.beginPath();
-            ctx.moveTo(34, 3);
-            ctx.lineTo(58, -2);
+            // Mount beneath the forward fuselage, then project forward past the nose.
+            ctx.moveTo(18, 14);
+            ctx.lineTo(61, 17);
             ctx.stroke();
             ctx.lineCap = "butt";
           } else {
