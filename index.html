@@ -2257,23 +2257,27 @@
             rect(22, -4, 4, 4, "#364b5a");
             rect(32, -14, 3, 28, "#171d25");
             rect(30, -1, 6, 4, "#171d25");
-            // Cessna fixed gear: long splayed main struts and prominent round wheels.
-            ctx.strokeStyle = "#d9dde0";
-            ctx.lineWidth = 3;
+            // Side-view Cessna gear: one visible main wheel close under the fuselage,
+            // plus a tiny black wheel at the rear.
+            ctx.strokeStyle = "#6f777d";
+            ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(-7, 7); ctx.lineTo(-20, 24);
-            ctx.moveTo(8, 7); ctx.lineTo(22, 24);
+            ctx.moveTo(8, 7); ctx.lineTo(13, 14);
             ctx.stroke();
-            for (const wx of [-22, 24]) {
-              ctx.beginPath();
-              ctx.arc(wx, 27, 6, 0, Math.PI * 2);
-              ctx.fillStyle = "#171d25";
-              ctx.fill();
-              ctx.beginPath();
-              ctx.arc(wx, 27, 2.3, 0, Math.PI * 2);
-              ctx.fillStyle = "#d9dde0";
-              ctx.fill();
-            }
+            ctx.beginPath();
+            ctx.arc(14, 16, 4, 0, Math.PI * 2);
+            ctx.fillStyle = "#171d25";
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(14, 16, 1.5, 0, Math.PI * 2);
+            ctx.fillStyle = "#8d969d";
+            ctx.fill();
+
+            // Tiny rear wheel.
+            ctx.beginPath();
+            ctx.arc(-27, 11, 2.5, 0, Math.PI * 2);
+            ctx.fillStyle = "#111111";
+            ctx.fill();
           } else {
             const color = a.color === 0 ? "#f2f1e9" : "#cc4a42";
             polygon(
