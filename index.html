@@ -2257,21 +2257,21 @@
             rect(22, -4, 4, 4, "#364b5a");
             rect(32, -14, 3, 28, "#171d25");
             rect(30, -1, 6, 4, "#171d25");
-            // Cessna-style fixed landing gear: two slim struts and two round wheels.
-            ctx.strokeStyle = "#242b30";
-            ctx.lineWidth = 2;
+            // Cessna fixed gear: long splayed main struts and prominent round wheels.
+            ctx.strokeStyle = "#d9dde0";
+            ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.moveTo(-11, 7); ctx.lineTo(-16, 15);
-            ctx.moveTo(12, 7); ctx.lineTo(17, 15);
+            ctx.moveTo(-7, 7); ctx.lineTo(-20, 24);
+            ctx.moveTo(8, 7); ctx.lineTo(22, 24);
             ctx.stroke();
-            for (const wx of [-17, 18]) {
+            for (const wx of [-22, 24]) {
               ctx.beginPath();
-              ctx.arc(wx, 17, 4, 0, Math.PI * 2);
+              ctx.arc(wx, 27, 6, 0, Math.PI * 2);
               ctx.fillStyle = "#171d25";
               ctx.fill();
               ctx.beginPath();
-              ctx.arc(wx, 17, 1.5, 0, Math.PI * 2);
-              ctx.fillStyle = "#8d969d";
+              ctx.arc(wx, 27, 2.3, 0, Math.PI * 2);
+              ctx.fillStyle = "#d9dde0";
               ctx.fill();
             }
           } else {
