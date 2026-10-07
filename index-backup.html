@@ -852,7 +852,7 @@
           }
           groundObstacles = makeGroundObstacles();
           worldLandmark = makeWorldLandmark();
-          player = { y: 276, vy: 0, pitch: 0 };
+          player = { y: 276, vy: 0 };
           camera = 0;
           passed = 0;
           airPassed = 0;
@@ -915,12 +915,7 @@
             newFlight();
             return;
           }
-          if (state === "flying") {
-            player.vy = plane.lift;
-            // Visual-only pitch: fixed-wing aircraft raise the nose about 18 degrees;
-            // the Black Hawk uses a gentler 10-degree pitch. Flight physics stay unchanged.
-            player.pitch = ((plane.id === "blackhawk" ? -10 : -18) * Math.PI) / 180;
-          }
+          if (state === "flying") player.vy = plane.lift;
         }
         startButton.addEventListener("click", newFlight);
         aircraftSelect.addEventListener("change", () => {
@@ -1427,12 +1422,11 @@
           if (worldLandmark.type === "bigChicken") drawBigChicken(sx, GROUND);
           else if (worldLandmark.type === "boot") drawCowboyBoot(sx, GROUND);
         }
-        function drawPlane(x, y, p, scheme, pitch = 0) {
+        function drawPlane(x, y, p, scheme) {
           const w = p.w,
             h = p.h;
           ctx.save();
           ctx.translate(Math.round(x), Math.round(y));
-          ctx.rotate(pitch);
           if (p.id === "shuttle") {
             ctx.scale(w / 112, h / 48);
             // Columbia-inspired side profile: long white orbiter, black thermal belly/nose,
@@ -2411,17 +2405,12 @@
         function update() {
           if (state === "landing") {
             landingFrames++;
-            player.pitch += (0 - (player.pitch || 0)) * 0.14;
             camera += plane.speed * worldSpeedMultiplier() * 0.75;
             player.y += (GROUND - plane.h * 0.65 - player.y) * 0.047;
             if (landingFrames > 85) finish(true);
             return;
           }
           if (state !== "flying") return;
-          // Smoothly self-level after each click/tap. The aircraft remains level while falling
-          // instead of following its vertical velocity nose-down.
-          player.pitch += (0 - (player.pitch || 0)) * 0.085;
-          if (Math.abs(player.pitch) < 0.001) player.pitch = 0;
           player.vy = Math.min(7.3, player.vy + plane.gravity);
           player.y += player.vy;
           camera += plane.speed * worldSpeedMultiplier();
@@ -2551,7 +2540,7 @@
           }
           runway();
           const preview = state === "menu";
-          drawPlane(PLANE_X, preview ? 270 : player.y, plane, paint, preview ? 0 : (player.pitch || 0));
+          drawPlane(PLANE_X, preview ? 270 : player.y, plane, paint);
           // Compact HUD in the upper-right so it stays clear of the player's aircraft.
           const hudX = W - 226;
           rect(hudX, 12, 214, 42, "#24354a");
@@ -2624,7 +2613,7 @@
         refreshPaints();
         groundObstacles = makeGroundObstacles();
         worldLandmark = makeWorldLandmark();
-        player = { y: 270, vy: 0, pitch: 0 };
+        player = { y: 270, vy: 0 };
         setMessage("Choose a plane and start your flight.");
         updateWorldControlState();
         requestAnimationFrame(frame);
