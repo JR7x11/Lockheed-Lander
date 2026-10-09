@@ -459,10 +459,22 @@
           menuOriginalSelection = null;
           rearmPointerFlap(null);
         }
-        mobileMenuButton.addEventListener("click", openLandscapeMenu);
+        // Open on pointerdown rather than waiting for a synthesized click.
+        // This stays reliable during iOS full-screen flight/touch handling.
+        mobileMenuButton.addEventListener("pointerdown", e => {
+          if (!e.isPrimary || (e.pointerType === "mouse" && e.button !== 0)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          openLandscapeMenu();
+        });
+        // Keyboard accessibility and browsers without Pointer Events.
+        mobileMenuButton.addEventListener("click", e => {
+          e.stopPropagation();
+          openLandscapeMenu();
+        });
         mobileMenuClose.addEventListener("click", closeLandscapeMenu);
         mobileMenuBackdrop.addEventListener("click", closeLandscapeMenu);
-        [mobileMenuButton, mobileMenuClose, mobileMenuBackdrop].forEach(el => {
+        [mobileMenuClose, mobileMenuBackdrop].forEach(el => {
           el.addEventListener("pointerdown", e => e.stopPropagation());
         });
 
