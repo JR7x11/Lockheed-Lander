@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Lockheed Lander</title>
     <meta
       name="description"
@@ -28,9 +28,11 @@
         margin: 0;
         min-height: 100vh;
         overscroll-behavior: none;
-        touch-action: none;
+        -webkit-text-size-adjust: 100%;
+        width: 100%;
       }
       body {
+        overflow-x: hidden;
         display: grid;
         place-items: center;
         padding: 14px;
@@ -95,6 +97,10 @@
         cursor: default;
       }
       .screen {
+        touch-action: none;
+        overscroll-behavior: contain;
+        -webkit-user-select: none;
+        user-select: none;
         position: relative;
         overflow: hidden;
         border: 4px solid #080f1c;
@@ -105,7 +111,11 @@
         height: auto;
         display: block;
         image-rendering: pixelated;
+        -webkit-user-drag: none;
         touch-action: none;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
         -webkit-tap-highlight-color: transparent;
       }
       #message {
@@ -119,6 +129,20 @@
         color: #b7cadd;
         line-height: 1.5;
         font-size: 13px;
+      }
+      /* Keep the playfield anchored while a flight is in progress. */
+      @media (pointer: coarse) {
+        html.mobile-flight-lock,
+        body.mobile-flight-lock {
+          overscroll-behavior: none;
+        }
+        body.mobile-flight-lock {
+          position: fixed;
+          width: 100%;
+          left: 0;
+          right: 0;
+          overflow: hidden;
+        }
       }
       @media (max-width: 600px) {
         body {
@@ -1003,18 +1027,62 @@
           else
             setMessage("World 3 — Night: moonlit approach and runway lights.");
         });
+        // Track each press until release, even if the finger slides off canvas.
+        // Prevents a long touch from being counted as multiple taps.
+        let activePointerId = null;
         canvas.addEventListener("pointerdown", (e) => {
           e.preventDefault();
-          if (!e.isPrimary || !pointerFlapArmed) return;
+          if (!e.isPrimary || !pointerFlapArmed || (e.pointerType === "mouse" && e.button !== 0)) return;
           pointerFlapArmed = false;
+          activePointerId = e.pointerId;
+          if (canvas.setPointerCapture) {
+            try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+          }
           flap();
         });
         const rearmPointerFlap = (e) => {
-          if (!e || e.isPrimary) pointerFlapArmed = true;
+          if (e && e.pointerId !== activePointerId) return;
+          activePointerId = null;
+          pointerFlapArmed = true;
         };
         canvas.addEventListener("pointerup", rearmPointerFlap);
         canvas.addEventListener("pointercancel", rearmPointerFlap);
-        canvas.addEventListener("pointerleave", rearmPointerFlap);
+        // Release outside the canvas must not leave touch input stuck.
+        window.addEventListener("pointerup", rearmPointerFlap);
+        window.addEventListener("pointercancel", rearmPointerFlap);
+        window.addEventListener("blur", () => rearmPointerFlap(null));
+
+        // Lock page scrolling only during active gameplay on touch devices.
+        // Restore the exact scroll position after landing/crashing/menu.
+        const coarsePointer = window.matchMedia("(pointer: coarse)");
+        let lockedScrollY = null;
+        function syncMobileFlightLock() {
+          const shouldLock = coarsePointer.matches &&
+            (state === "flying" || state === "landing");
+          if (shouldLock && lockedScrollY === null) {
+            lockedScrollY = window.scrollY;
+            document.body.style.top = `-${lockedScrollY}px`;
+            document.documentElement.classList.add("mobile-flight-lock");
+            document.body.classList.add("mobile-flight-lock");
+          } else if (!shouldLock && lockedScrollY !== null) {
+            const restoreY = lockedScrollY;
+            lockedScrollY = null;
+            document.body.classList.remove("mobile-flight-lock");
+            document.documentElement.classList.remove("mobile-flight-lock");
+            document.body.style.top = "";
+            window.scrollTo(0, restoreY);
+          }
+        }
+        // iOS Safari may still scroll on gestures that begin on canvas.
+        document.addEventListener("touchmove", (e) => {
+          if (lockedScrollY !== null && e.cancelable) e.preventDefault();
+        }, { passive: false });
+        document.addEventListener("gesturestart", (e) => {
+          if (lockedScrollY !== null && e.cancelable) e.preventDefault();
+        }, { passive: false });
+        document.addEventListener("visibilitychange", () => {
+          if (document.hidden) rearmPointerFlap(null);
+        });
         canvas.addEventListener(
           "touchstart",
           (e) => {
@@ -3060,6 +3128,7 @@
           }
         }
         function frame(now) {
+          syncMobileFlightLock();
           if (!lastTime) lastTime = now;
           accumulator = Math.min(
             100,
