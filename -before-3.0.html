@@ -219,46 +219,6 @@
         outline: 3px solid white;
         outline-offset: 4px;
       }
-
-      /* Mobile Experience 3.0: portrait uses every available horizontal pixel. */
-      @media (hover: none) and (pointer: coarse) and (orientation: portrait) {
-        body { padding: 4px; }
-        main { width: 100%; }
-        .panel { padding: 4px; border-width: 2px; }
-        .screen { border-width: 2px; }
-        .toolbar { margin-bottom: 6px; }
-        h1 { font-size: clamp(20px, 6vw, 30px); }
-        .sub { margin-bottom: 6px; }
-      }
-      /* Landscape: maximize the playable canvas without distorting its 16:9 image. */
-      @media (hover: none) and (pointer: coarse) and (orientation: landscape) {
-        html, body { width: 100%; min-height: 100%; margin: 0; padding: 0; }
-        body { display: block; }
-        main, .panel { display: contents; }
-        h1, .sub, .help, #message, .panel > div:last-child { display: none; }
-        .screen {
-          position: fixed; inset: 0; width: 100vw; height: 100dvh;
-          border: 0; margin: 0; background: #080f1c;
-          display: flex; align-items: center; justify-content: center;
-        }
-        .screen canvas {
-          display: block; width: 100%; height: 100%;
-          object-fit: contain; aspect-ratio: 16 / 9;
-        }
-        .toolbar {
-          position: fixed; top: max(5px, env(safe-area-inset-top));
-          left: max(5px, env(safe-area-inset-left));
-          right: max(5px, env(safe-area-inset-right));
-          z-index: 20; display: flex; flex-wrap: nowrap;
-          align-items: center; gap: 5px; padding: 5px;
-          background: rgba(10, 22, 38, .92); margin: 0;
-        }
-        .toolbar label { min-width: 0; flex: 1 1 0; font-size: 10px; }
-        .toolbar select, .toolbar button {
-          width: 100%; min-height: 34px; padding: 3px; font-size: 12px;
-        }
-        body.mobile-flight-lock .toolbar { display: none; }
-      }
     </style>
   </head>
   <body>
@@ -330,7 +290,7 @@
           Choose a plane and start your flight.
         </div>
         <p class="help">
-          Click the game to climb, or tap anywhere on a phone while flying. Each click or tap gives
+          Click the game to climb, or tap it on a phone. Each click or tap gives
           one lift. During the final approach, reach the runway marker at a safe
           height and a gentle vertical speed. A successful landing unlocks one
           new paint scheme for that aircraft. Land the C-130, F-35, C-5, Black
@@ -974,7 +934,7 @@
           startButton.textContent = "RESTART";
           updateWorldControlState();
           setMessage(
-            `${plane.name} airborne! Click or tap anywhere to climb. Runway approach: stay near the gold marker.`,
+            `${plane.name} airborne! Click or tap the game to climb. Runway approach: stay near the gold marker.`,
           );
         }
         function finish(success, reason = "") {
@@ -1080,19 +1040,6 @@
           }
           flap();
         });
-        // Touching anywhere on the mobile screen climbs during an active flight.
-        // The canvas keeps its original pointer handler; controls are excluded.
-        document.addEventListener("pointerdown", (e) => {
-          if (!coarsePointer.matches || e.pointerType === "mouse" ||
-              (state !== "flying" && state !== "landing") ||
-              !e.isPrimary || e.target === canvas ||
-              (e.target.closest && e.target.closest("button, select, a, label, input"))) return;
-          if (e.cancelable) e.preventDefault();
-          if (!pointerFlapArmed) return;
-          pointerFlapArmed = false;
-          activePointerId = e.pointerId;
-          flap();
-        }, { passive: false });
         const rearmPointerFlap = (e) => {
           if (e && e.pointerId !== activePointerId) return;
           activePointerId = null;
