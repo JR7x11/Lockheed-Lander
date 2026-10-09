@@ -4,6 +4,15 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Lockheed Lander</title>
+    <!-- Lockheed Lander PWA -->
+    <meta name="theme-color" content="#071b43" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="LHM Lander" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
+
     <meta
       name="description"
       content="A retro aircraft landing game with six aircraft, paint unlocks, and a secret SR-71."
@@ -3225,5 +3234,14 @@
       syncSecretSpaceWorld();
     </script>
     <!-- End Cloudflare Web Analytics -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').catch(err => {
+            console.warn('Offline mode unavailable:', err);
+          });
+        });
+      }
+    </script>
   </body>
 </html>
