@@ -410,6 +410,7 @@
         const mobileMenuClose = document.querySelector("#landscapeMenuClose");
         const mobileMenuBackdrop = document.querySelector("#landscapeMenuBackdrop");
         let mobileMenuOpen = false;
+        let menuOpenedAt = -Infinity;
         let pausedFlightState = null;
         let menuOriginalSelection = null;
         const isMobileLandscape = () => window.matchMedia("(hover: none) and (pointer: coarse) and (orientation: landscape)").matches;
@@ -431,6 +432,7 @@
         function openLandscapeMenu() {
           if (!isMobileLandscape() || mobileMenuOpen) return;
           mobileMenuOpen = true;
+          menuOpenedAt = performance.now();
           pausedFlightState = state === "flying" || state === "landing" ? state : null;
           menuOriginalSelection = [worldSelect.value, aircraftSelect.value, paintSelect.value];
           document.body.classList.add("landscape-menu-open");
@@ -473,7 +475,13 @@
           openLandscapeMenu();
         });
         mobileMenuClose.addEventListener("click", closeLandscapeMenu);
-        mobileMenuBackdrop.addEventListener("click", closeLandscapeMenu);
+        // Ignore the synthetic click produced when the opening finger is lifted.
+        // iOS can retarget it onto the backdrop created on pointerdown.
+        mobileMenuBackdrop.addEventListener("click", e => {
+          e.stopPropagation();
+          if (performance.now() - menuOpenedAt < 650) return;
+          closeLandscapeMenu();
+        });
         [mobileMenuClose, mobileMenuBackdrop].forEach(el => {
           el.addEventListener("pointerdown", e => e.stopPropagation());
         });
