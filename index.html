@@ -180,6 +180,22 @@
         }
       }
 
+
+      /* QOL: keep the touch menu hidden outside mobile landscape. */
+      #landscapeMenuButton, #landscapeMenuBackdrop, #landscapeMenuClose { display: none; }
+      #landscapeMenuButton {
+        position: absolute; z-index: 35; padding: 0; margin: 0;
+        width: 38px; height: 38px; min-height: 0;
+        border: 2px solid #a9c7d4; background: #24354a;
+        color: #ffdf94; font-size: 24px; line-height: 1;
+        touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+      }
+      #landscapeMenuBackdrop {
+        position: fixed; inset: 0; z-index: 60;
+        background: rgba(3, 10, 21, .75);
+        touch-action: none;
+      }
+
       /* Cinematic splash screen; artwork is a separate asset to keep index.html lightweight. */
       #cinematicSplash {
         position: fixed;
@@ -266,7 +282,25 @@
         .toolbar select, .toolbar button {
           width: 100%; min-height: 34px; padding: 3px; font-size: 12px;
         }
-        body.mobile-flight-lock .toolbar { display: none; }
+        .toolbar { display: none; }
+        body.landscape-menu-open .toolbar {
+          display: flex; position: fixed; z-index: 61;
+          left: 50%; top: 50%; right: auto;
+          transform: translate(-50%, -50%);
+          width: min(86vw, 570px); max-height: 90dvh;
+          overflow-y: auto; flex-wrap: wrap; gap: 10px;
+          padding: 16px; border: 4px solid #8fa5b3;
+          background: #15243b; box-shadow: 7px 7px #080f1c;
+        }
+        body.landscape-menu-open .toolbar label { flex: 1 1 44%; font-size: 13px; }
+        body.landscape-menu-open .toolbar select,
+        body.landscape-menu-open .toolbar button { min-height: 40px; font-size: 14px; }
+        body.landscape-menu-open #landscapeMenuClose { display: block; }
+        #landscapeMenuButton { display: block; }
+        body.landscape-menu-open #landscapeMenuBackdrop { display: block; }
+        body.landscape-menu-open .toolbar #start { flex: 1 1 44%; }
+        body.landscape-menu-open .toolbar #landscapeMenuClose { flex: 1 1 44%; }
+        body.mobile-flight-lock.landscape-menu-open .toolbar { display: flex; }
       }
     </style>
   </head>
@@ -326,6 +360,7 @@
             </select></label
           >
           <button id="start">START FLIGHT</button>
+          <button id="landscapeMenuClose" type="button">RESUME FLIGHT</button>
         </div>
         <div class="screen">
           <canvas
@@ -334,7 +369,9 @@
             height="540"
             aria-label="Lockheed Lander game"
           ></canvas>
+          <button id="landscapeMenuButton" type="button" aria-label="Open World, Aircraft and Paint Scheme menu" aria-expanded="false">☰</button>
         </div>
+        <div id="landscapeMenuBackdrop" aria-hidden="true"></div>
         <div id="message" role="status">
           Choose a plane and start your flight.
         </div>
@@ -369,6 +406,66 @@
         const paintSelect = document.querySelector("#paint");
         const startButton = document.querySelector("#start");
         const message = document.querySelector("#message");
+        const mobileMenuButton = document.querySelector("#landscapeMenuButton");
+        const mobileMenuClose = document.querySelector("#landscapeMenuClose");
+        const mobileMenuBackdrop = document.querySelector("#landscapeMenuBackdrop");
+        let mobileMenuOpen = false;
+        let pausedFlightState = null;
+        let menuOriginalSelection = null;
+        const isMobileLandscape = () => window.matchMedia("(hover: none) and (pointer: coarse) and (orientation: landscape)").matches;
+        function placeLandscapeMenuButton() {
+          const box = canvas.getBoundingClientRect();
+          const scale = Math.min(box.width / 960, box.height / 540);
+          const offsetX = (box.width - 960 * scale) / 2;
+          const offsetY = (box.height - 540 * scale) / 2;
+          mobileMenuButton.style.left = `${offsetX + 912 * scale - 19}px`;
+          mobileMenuButton.style.top = `${offsetY + 15 * scale}px`;
+          mobileMenuButton.style.width = `${Math.max(30, Math.min(39, 37 * scale))}px`;
+          mobileMenuButton.style.height = `${Math.max(30, Math.min(39, 37 * scale))}px`;
+        }
+        window.addEventListener("resize", placeLandscapeMenuButton);
+        window.addEventListener("orientationchange", () => {
+          if (!isMobileLandscape() && mobileMenuOpen) closeLandscapeMenu();
+          placeLandscapeMenuButton();
+        });
+        function openLandscapeMenu() {
+          if (!isMobileLandscape() || mobileMenuOpen) return;
+          mobileMenuOpen = true;
+          pausedFlightState = state === "flying" || state === "landing" ? state : null;
+          menuOriginalSelection = [worldSelect.value, aircraftSelect.value, paintSelect.value];
+          document.body.classList.add("landscape-menu-open");
+          mobileMenuButton.setAttribute("aria-expanded", "true");
+          worldSelect.disabled = false;
+          aircraftSelect.disabled = false;
+          paintSelect.disabled = false;
+          mobileMenuClose.textContent = pausedFlightState ? "RESUME FLIGHT" : "CLOSE MENU";
+          rearmPointerFlap(null);
+        }
+        function closeLandscapeMenu() {
+          if (!mobileMenuOpen) return;
+          const changed = menuOriginalSelection &&
+            [worldSelect.value, aircraftSelect.value, paintSelect.value].some((v, i) => v !== menuOriginalSelection[i]);
+          mobileMenuOpen = false;
+          document.body.classList.remove("landscape-menu-open");
+          mobileMenuButton.setAttribute("aria-expanded", "false");
+          if (changed && pausedFlightState) newFlight();
+          else if (pausedFlightState) {
+            state = pausedFlightState;
+            aircraftSelect.disabled = true;
+            paintSelect.disabled = true;
+          }
+          updateWorldControlState();
+          pausedFlightState = null;
+          menuOriginalSelection = null;
+          rearmPointerFlap(null);
+        }
+        mobileMenuButton.addEventListener("click", openLandscapeMenu);
+        mobileMenuClose.addEventListener("click", closeLandscapeMenu);
+        mobileMenuBackdrop.addEventListener("click", closeLandscapeMenu);
+        [mobileMenuButton, mobileMenuClose, mobileMenuBackdrop].forEach(el => {
+          el.addEventListener("pointerdown", e => e.stopPropagation());
+        });
+
         const W = 960,
           H = 540,
           GROUND = 482,
@@ -943,7 +1040,7 @@
         }
         function updateWorldControlState() {
           const activeFlight = state === "flying" || state === "landing";
-          worldSelect.disabled = activeFlight;
+          worldSelect.disabled = activeFlight && !mobileMenuOpen;
         }
         function setMessage(text) {
           message.textContent = text;
@@ -1024,6 +1121,7 @@
         let lastFlapAt = 0;
         let pointerFlapArmed = true;
         function flap() {
+          if (mobileMenuOpen) return;
           const now = performance.now();
           // Hard input guard: one climb per deliberate press/tap.
           if (now - lastFlapAt < 180) return;
@@ -1041,7 +1139,16 @@
               ((plane.id === "blackhawk" ? -10 : -18) * Math.PI) / 180;
           }
         }
-        startButton.addEventListener("click", newFlight);
+        startButton.addEventListener("click", () => {
+          if (mobileMenuOpen) {
+            mobileMenuOpen = false;
+            document.body.classList.remove("landscape-menu-open");
+            mobileMenuButton.setAttribute("aria-expanded", "false");
+            pausedFlightState = null;
+            menuOriginalSelection = null;
+          }
+          newFlight();
+        });
         aircraftSelect.addEventListener("change", () => {
           plane =
             PLANES.find((p) => p.id === aircraftSelect.value) || PLANES[0];
@@ -1056,7 +1163,7 @@
         );
         worldSelect.addEventListener("change", () => {
           const world = getWorldConfig();
-          if (state === "flying" || state === "landing") return;
+          if ((state === "flying" || state === "landing") && !mobileMenuOpen) return;
           if (world.id === "space") {
             plane = PLANES.find((p) => p.id === "shuttle");
             paint = SHUTTLE_PAINTS[0];
@@ -1095,7 +1202,7 @@
           if (!coarsePointer.matches || e.pointerType === "mouse" ||
               (state !== "flying" && state !== "landing") ||
               !e.isPrimary || e.target === canvas ||
-              (e.target.closest && e.target.closest("button, select, a, label, input"))) return;
+              mobileMenuOpen || (e.target.closest && e.target.closest("button, select, a, label, input, .toolbar"))) return;
           if (e.cancelable) e.preventDefault();
           if (!pointerFlapArmed) return;
           pointerFlapArmed = false;
@@ -1137,7 +1244,7 @@
         }
         // iOS Safari may still scroll on gestures that begin on canvas.
         document.addEventListener("touchmove", (e) => {
-          if (lockedScrollY !== null && e.cancelable) e.preventDefault();
+          if (lockedScrollY !== null && !mobileMenuOpen && e.cancelable) e.preventDefault();
         }, { passive: false });
         document.addEventListener("gesturestart", (e) => {
           if (lockedScrollY !== null && e.cancelable) e.preventDefault();
@@ -2996,6 +3103,7 @@
           rect(sx - 12, GROUND - 2, 24, 5, "#f4d05f");
         }
         function update() {
+          if (mobileMenuOpen) return;
           if (state === "landing") {
             landingFrames++;
             player.pitch += (0 - (player.pitch || 0)) * 0.14;
@@ -3222,6 +3330,7 @@
         player = { y: 270, vy: 0, pitch: 0 };
         setMessage("Choose a plane and start your flight.");
         updateWorldControlState();
+        placeLandscapeMenuButton();
         requestAnimationFrame(frame);
       })();
     </script>
