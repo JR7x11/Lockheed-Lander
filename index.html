@@ -905,14 +905,25 @@
               ? baseObstacleTypes
               : Array.from(
                   { length: COUNT },
-                  (_, i) => baseObstacleTypes[i % baseObstacleTypes.length],
+                  (_, i) =>
+                    world.id === "ftw" && i === 6
+                      ? "attStadium"
+                      : world.id === "darb" && (i === 3 || i === 14)
+                      ? "antennas"
+                      : world.id === "darb" && i === 7
+                        ? "truistTke"
+                        : world.id === "darb" && i === 8
+                          ? "constructionCrane"
+                          : world.id === "darb" && baseObstacleTypes[i % baseObstacleTypes.length] === "mountain"
+                            ? "kennesawMountain"
+                            : baseObstacleTypes[i % baseObstacleTypes.length],
                 );
 
           return obstacleTypes.map((type, i) => ({
             x:
               world.id === "night"
                 ? START_X + 520 + i * SPACING * 2.7
-                : START_X + i * SPACING,
+                : START_X + i * SPACING - (world.id === "darb" && type === "constructionCrane" ? 75 : 0) + (world.id === "darb" && type === "kennesawMountain" ? 125 : 0),
             type,
             firstTower: i === 1,
 
@@ -922,7 +933,14 @@
                 : null,
 
             width:
-              type === "mountain"
+              type === "attStadium" ? 720 :
+              type === "antennas" || type === "kennesawMountain"
+                ? (type === "kennesawMountain" ? 850 : 164)
+                : type === "constructionCrane"
+                  ? 140
+                  : type === "truistTke"
+                ? 340
+                : type === "mountain"
                 ? 164
                 : type === "hangar"
                   ? 150
@@ -933,7 +951,14 @@
                       : 70,
 
             top:
-              type === "mountain"
+              type === "attStadium" ? 340 :
+              type === "antennas" || type === "kennesawMountain"
+                ? 250
+                : type === "constructionCrane"
+                  ? 304
+                  : type === "truistTke"
+                ? 250
+                : type === "mountain"
                 ? 250
                 : type === "tower"
                   ? 304
@@ -942,7 +967,10 @@
                     : type === "oilRig"
                       ? 334
                       : 377,
-          }));
+          })).filter((o, i) =>
+            !(world.id === "darb" && o.type === "hangar" && obstacleTypes[i-1] === "kennesawMountain") &&
+            !(world.id === "ftw" && (i === 5 || i === 7))
+          );
         }
         function makeWorldLandmark() {
           const world = getWorldConfig();
@@ -1010,12 +1038,13 @@
             const color =
               type === "lightplane" ? planeColors++ % 2 : heliColors++ % 2;
             return {
-              x: START_X + slot * (SPACING + 45) + 205,
-              y: yLevels[i],
-              type,
+              x: START_X + slot * (SPACING + 45) + (world.id === "darb" && slot === 6 ? 115 : 205),
+              // Lower and smaller: leaves an upper flight corridor for the C-5.
+              y: world.id === "darb" && slot === 6 ? 215 : yLevels[i],
+              type: world.id === "darb" && slot === 6 ? "blimp" : type,
               color,
-              width: type === "lightplane" ? 62 : 56,
-              height: type === "lightplane" ? 34 : 37,
+              width: world.id === "darb" && slot === 6 ? 82 : type === "lightplane" ? 62 : 56,
+              height: world.id === "darb" && slot === 6 ? 34 : type === "lightplane" ? 34 : 37,
             };
           });
           if (world.id === "night") {
@@ -1380,8 +1409,20 @@
           }
 
           const world = getWorldConfig();
-          rect(0, 0, W, H, world.skyTop);
-          rect(0, 340, W, 95, world.skyBottom);
+          if (world.id === "ftw") {
+            // Smooth, continuous purple-to-orange dusk. No hard horizontal color bands.
+            const sunset = ctx.createLinearGradient(0, 0, 0, GROUND);
+            sunset.addColorStop(0, "#654565");
+            sunset.addColorStop(0.36, "#92576a");
+            sunset.addColorStop(0.67, "#d77a65");
+            sunset.addColorStop(0.88, "#f19b6a");
+            sunset.addColorStop(1, "#e5a175");
+            ctx.fillStyle = sunset;
+            ctx.fillRect(0, 0, W, GROUND);
+          } else {
+            rect(0, 0, W, H, world.skyTop);
+            rect(0, 340, W, 95, world.skyBottom);
+          }
           if (world.id === "night") {
             // World 3 — open ocean at night.
             for (const dot of skyDots) {
@@ -1418,38 +1459,50 @@
               "#d1e8dd",
             );
           if (world.id === "ftw") {
-            // North Texas prairie — flat horizon, dry grass, mesquite, windmills and distant tanks.
-            rect(0, 408, W, 74, "#c9b36f");
-            rect(0, 438, W, 44, "#a98d52");
-            for (let j = -1; j < 13; j++) {
-              const x = j * 96 - (Math.floor(camera * 0.12) % 96);
-              // Low mesquite/scrub silhouette.
-              rect(x, 419 + (j % 3) * 4, 35, 8, "#716f45");
-              rect(x + 8, 411 + (j % 2) * 5, 19, 9, "#7c7949");
+            // Very distant DFW skyline: low on horizon, muted by sunset haze.
+            // Two subtle parallax layers; no solid wall of dark buildings.
+            const skylineBase = 478;
+            const farShift = Math.floor(camera * 0.018);
+            const nearShift = Math.floor(camera * 0.034);
+            const farHeights = [17,24,20,32,25,39,21,29,43,23,33,19,27,47,24,34,18,31,22,36,21,29];
+            for (let j = -2; j < 4; j++) {
+              const origin = j * 1056 - (farShift % 1056);
+              for (let i = 0; i < farHeights.length; i++) {
+                const bw = 45, x = origin + i * 48, bh = farHeights[i];
+                rect(x, skylineBase - bh, bw, bh, i % 3 === 0 ? "#b6a49a" : "#c5aea0");
+                if (i % 6 === 2) rect(x + 18, skylineBase - bh - 5, 2, 5, "#b8a79e");
+              }
             }
-            // Distant ranch windmill.
-            const wx = 760 - (Math.floor(camera * 0.08) % 1180);
-            rect(wx, 356, 4, 66, "#6c6655");
-            rect(wx - 23, 377, 50, 3, "#6c6655");
-            rect(wx + 1, 354, 3, 49, "#6c6655");
-            ctx.strokeStyle = "#6c6655";
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(wx + 2, 376, 21, 0, Math.PI * 2);
-            ctx.stroke();
-            for (let a = 0; a < 8; a++) {
-              const ang = (a * Math.PI) / 4;
-              ctx.beginPath();
-              ctx.moveTo(wx + 2, 376);
-              ctx.lineTo(wx + 2 + Math.cos(ang) * 20, 376 + Math.sin(ang) * 20);
-              ctx.stroke();
+            // Sparse foreground rooftops in warm haze, not a night skyline.
+            const heights = [12,16,21,13,25,17,29,20,14,27,18,32,22,15,28,19,14,25,21,15,31,17,22,13];
+            for (let j = -2; j < 4; j++) {
+              const origin = j * 1032 - (nearShift % 1032);
+              for (let i = 0; i < heights.length; i++) {
+                const x = origin + i * 43, h = heights[i], bw = 39;
+                rect(x, skylineBase - h, bw, h, i % 4 === 0 ? "#a28f88" : "#ac9890");
+                if (i % 7 === 3) rect(x + 6, skylineBase - h - 5, 27, 5, "#ac9890");
+                // Occasional sunset reflections, rather than lit night windows.
+                if (i % 3 === 0) for (let col=0;col<3;col++)
+                  rect(x+7+col*10,skylineBase-h+7,3,3,"#d7b6a0");
+              }
+              // Dallas Reunion Tower: small landmark on the horizon.
+              const rx = origin + 360;
+              rect(rx - 2, skylineBase - 43, 4, 43, "#9f908c");
+              ctx.fillStyle = "#9f908c";
+              ctx.beginPath();ctx.arc(rx,skylineBase-46,7,0,Math.PI*2);ctx.fill();
+              // Fort Worth's historic stepped and pitched rooflines.
+              const fx = origin + 710;
+              rect(fx,skylineBase-27,48,27,"#a4938d");
+              rect(fx+10,skylineBase-31,28,4,"#a4938d");
+              rect(fx+23,skylineBase-36,3,5,"#a4938d");
+              rect(fx+73,skylineBase-23,39,23,"#a4938d");
+              ctx.fillStyle="#a4938d";
+              ctx.beginPath();ctx.moveTo(fx+73,skylineBase-23);
+              ctx.lineTo(fx+92,skylineBase-30);
+              ctx.lineTo(fx+112,skylineBase-23);ctx.fill();
             }
-            // Distant Texas water tank silhouette.
-            const tx = 330 - (Math.floor(camera * 0.055) % 1450);
-            rect(tx - 3, 371, 6, 51, "#77715f");
-            rect(tx - 24, 362, 48, 16, "#8b836c");
-            rect(tx - 18, 355, 36, 8, "#8b836c");
-            label("TX", tx, 374, 9, "#d8c89b", "center");
+            // Narrow horizon haze; leave the orange sunset visible.
+            rect(0,478,W,GROUND-478,"#b49a84");
           } else {
             for (let j = -1; j < 9; j++) {
               const x = j * 160 - (Math.floor(camera * 0.15) % 160);
@@ -2628,8 +2681,208 @@
 
           ctx.restore();
         }
+        // World 1: Truist Park / The Battery with the TKE tower as the
+        // actual mountain-height obstacle. Drawn using the game's native shapes.
+        function drawTruistBattery(sx, top) {
+          // Side elevation. All structures are one scrolling ground obstacle.
+          const y = GROUND;
+          // The Battery: intentionally different heights and widths, not a uniform row.
+          const shops = [
+            [-169, 42, 65, "#a76a58"],
+            [-126, 30, 100, "#bd8066"],
+            [-95, 27, 79, "#876a67"],
+            [112, 29, 95, "#ae6d59"],
+            [142, 27, 69, "#9d7764"]
+          ];
+          for (const [dx,w,h,color] of shops) {
+            rect(sx+dx,y-h,w,h,color);
+            rect(sx+dx-2,y-h-5,w+4,6,"#c8b9a6");
+            for (let wx=dx+6;wx<dx+w-6;wx+=13) {
+              rect(sx+wx,y-h+16,7,17,"#304e60");
+              rect(sx+wx,y-h+43,7,13,"#304e60");
+            }
+            rect(sx+dx+5,y-25,w-10,25,"#354956");
+          }
+          label("BATTERY",sx-148,y-110,8,"#f5e6d5","center");
+          // Truist Park: wider red-brick exterior viewed strictly from the side.
+          rect(sx-67,y-112,179,112,"#9e5d51");
+          rect(sx-67,y-112,179,9,"#c8b8a5");
+          for (const xx of [-60,-37,-14,9,55,78,101]) {
+            rect(sx+xx,y-90,15,68,"#263f50");
+            rect(sx+xx+7,y-90,2,68,"#8fa2ab");
+            rect(sx+xx,y-57,15,2,"#8fa2ab");
+          }
+          // Right-field gate, with prominent signage and no aerial field view.
+          rect(sx+30,y-77,23,77,"#253746");
+          rect(sx+32,y-74,19,3,"#b3bec3");
+          rect(sx+33,y-51,17,2,"#8ea4b0");
+          rect(sx+29,y-80,25,5,"#283a4a");
+          label("RF",sx+41,y-82,9,"#f3eee9","center");
+          // Roof overhang, steel supports and a clearly readable sign.
+          rect(sx-75,y-129,195,7,"#34445a");
+          rect(sx-75,y-135,195,5,"#728395");
+          for(let xx=-70;xx<=114;xx+=15) {
+            rect(sx+xx,y-128,3,18,"#34445a");
+            rect(sx+xx+3,y-120,9,2,"#465b6e");
+          }
+          polygon([[sx-81,y-136],[sx-70,y-143],[sx+106,y-143],
+                   [sx+122,y-136],[sx+122,y-131],[sx-81,y-131]],"#8b9caa");
+          rect(sx-26,y-155,99,14,"#293d52");
+          label("TRUIST PARK",sx+23,y-144,11,"#ffffff","center");
+          label("Braves",sx+41,y-97,10,"#db4149","center");
+          // TKE Tower: twice the previous 25px width, with glass and LED panel.
+          const tx=sx+116, tw=50, th=y-top;
+          rect(tx,top,tw,th,"#9eabb2");
+          rect(tx+5,top+3,tw-10,th-6,"#2c5364");
+          for(let yy=top+8;yy<y-5;yy+=13)
+            rect(tx+7,yy,tw-14,2,"#5b8190");
+          rect(tx,top,4,th,"#aab6bd");
+          rect(tx+tw-4,top,4,th,"#b9bfc2");
+          rect(tx-1,top-4,tw+2,5,"#9baeb7");
+          rect(tx+6,top+20,tw-12,15,"#e49b50");
+          rect(tx+6,top+35,tw-12,29,"#ed773c");
+          rect(tx+6,top+64,tw-12,20,"#d94383");
+          label("TKE",tx+tw/2,top+55,12,"#ffffff","center");
+        }
+        function kennesawRidgeY(dx, top) {
+          // Broad, low double summit; matches the photographs' long, gradual slopes.
+          // Left summit is rounded and lower; right summit is slightly taller.
+          const y=GROUND,h=y-top;
+          // Stretch the photographed silhouette to 850px, preserving its two summits.
+          dx=dx*600/850;
+          const pts=[
+            [-300,0],[-282,.09],[-258,.20],[-226,.34],[-192,.48],
+            [-154,.60],[-118,.68],[-82,.71],[-50,.70],[-18,.65],
+            [14,.60],[43,.62],[75,.73],[105,.84],[133,.92],
+            [158,.96],[184,.94],[215,.85],[244,.67],[268,.44],
+            [288,.19],[300,0]
+          ];
+          if(dx<=-300||dx>=300)return y;
+          for(let i=1;i<pts.length;i++)if(dx<=pts[i][0]){
+            const [x0,a]=pts[i-1],[x1,b]=pts[i];
+            const t=(dx-x0)/(x1-x0), smooth=t*t*(3-2*t);
+            return y-h*(a+(b-a)*smooth);
+          }
+          return y;
+        }
+        // World 1 Marietta-specific ground obstacles; all drawn in the live canvas.
+        function drawMariettaObstacle(o, sx) {
+          const y = GROUND;
+          const steel = "#536574", light = "#a7b9c1";
+          if (o.type === "antennas") {
+            const towers = [[-48, o.top+31], [0, o.top], [49, o.top+60]];
+            towers.forEach(([dx, ty], i) => {
+              const x = sx + dx;
+              // Tapered latticework; tallest is precisely original mountain height.
+              polygon([[x-13,y],[x-3,ty],[x+3,ty],[x+13,y]], steel);
+              rect(x-2,ty,4,y-ty,"#263744");
+              for(let yy=ty+18; yy<y-5; yy+=18) {
+                const w=3+10*(yy-ty)/(y-ty);
+                rect(x-w,yy,w*2,2,light);
+                ctx.strokeStyle="#b5c2c9";ctx.lineWidth=1;
+                ctx.beginPath();ctx.moveTo(x-w,yy);ctx.lineTo(x+w,Math.min(y,yy+18));
+                ctx.moveTo(x+w,yy);ctx.lineTo(x-w,Math.min(y,yy+18));ctx.stroke();
+              }
+              // Independent blinking obstruction lights.
+              const on = Math.floor(performance.now()/540+i*0.7)%2===0;
+              rect(x-3,ty-6,6,6,on?"#ff343b":"#712e3c");
+              if(on) {rect(x-7,ty-3,3,2,"#f56b65");rect(x+4,ty-3,3,2,"#f56b65");}
+            });
+          } else if(o.type === "constructionCrane") {
+            const ty=o.top, x=sx;
+            // Lattice mast, long jib, counterweight and dangling hook.
+            rect(x-7,ty+15,14,y-ty-15,"#c88d32");
+            for(let yy=ty+25;yy<y-8;yy+=16){
+              rect(x-7,yy,14,2,"#473e38");
+              ctx.strokeStyle="#614b33";ctx.lineWidth=2;ctx.beginPath();
+              ctx.moveTo(x-6,yy);ctx.lineTo(x+6,yy+14);ctx.moveTo(x+6,yy);ctx.lineTo(x-6,yy+14);ctx.stroke();
+            }
+            rect(x-91,ty+14,133,8,"#dfaa48");
+            for(let xx=x-87;xx<x+38;xx+=15) rect(xx,ty+15,2,7,"#695137");
+            polygon([[x-7,ty+14],[x+1,ty-13],[x+10,ty+14]],"#d6a347");
+            rect(x-64,ty+22,2,75,"#4b5359");rect(x-70,ty+94,14,5,"#e0b54e");
+            rect(x+19,ty+22,20,13,"#555961");
+            rect(x-3,ty-18,6,5,"#f44344");
+           } else if(o.type === "kennesawMountain") {
+            // Two rounded, tree-covered summits based on the reference photographs.
+            const ridge=[];
+            for(let dx=-425;dx<=425;dx+=3)ridge.push([sx+dx,kennesawRidgeY(dx,o.top)]);
+            ridge.push([sx+425,GROUND]);
+            polygon([...ridge,[sx+425,y],[sx-425,y]],"#465a40");
+            for(let i=0;i<360;i++){
+              const dx=-419+(i*83%838), upper=kennesawRidgeY(dx,o.top);
+              const depth=y-upper;
+              if(depth<15)continue;
+              const yy=upper+7+(i*47%Math.max(1,Math.floor(depth-12)));
+              rect(sx+dx,yy,3+(i%3)*2,2+(i%2)*2,
+                ["#354d39","#62704a","#3c513a","#536342","#728052"][i%5]);
+            }
+            ctx.beginPath();
+            ridge.forEach(([xx,yy],i)=>i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy));
+            ctx.strokeStyle="#637354";ctx.lineWidth=2;ctx.stroke();
+          }
+        }
+                // AT&T Stadium, Arlington: front elevation adapted to pixel-art.
+        // Wide silver retractable roof, glass atrium and exposed white steel arches.
+        function drawAttStadium(sx, top) {
+          const y = GROUND;
+          const dark = "#3a505e", steel = "#d9e1e1", glass = "#648a99";
+          // Curved side wings, stepped silver cladding.
+          polygon([[sx-355,y-15],[sx-355,y-92],[sx-324,y-125],
+                   [sx-267,y-140],[sx-220,y-137],[sx-212,y-18]],"#a4b5ba");
+          polygon([[sx+355,y-15],[sx+355,y-92],[sx+324,y-125],
+                   [sx+267,y-140],[sx+220,y-137],[sx+212,y-18]],"#a4b5ba");
+          for(let i=0;i<6;i++) {
+            rect(sx-350+i*19,y-84-i*6,9,3,"#d3dfe0");
+            rect(sx+341-i*19,y-84-i*6,9,3,"#d3dfe0");
+          }
+          // Main glass facade.
+          rect(sx-235,y-151,470,143,dark);
+          rect(sx-228,y-146,456,134,glass);
+          for(let x=sx-223;x<sx+228;x+=18) rect(x,y-146,3,133,"#d3dede");
+          for(let yy=y-132;yy<y-10;yy+=19) rect(sx-226,yy,453,3,"#afc3c9");
+          // Deep roof: shallow dome with high flat center, not a point.
+          polygon([[sx-337,y-138],[sx-285,y-177],[sx-190,y-202],
+                   [sx-102,y-213],[sx+102,y-213],[sx+190,y-202],
+                   [sx+285,y-177],[sx+337,y-138],[sx+240,y-143],
+                   [sx+195,y-168],[sx-195,y-168],[sx-240,y-143]],"#dce2e2");
+          polygon([[sx-190,y-202],[sx-110,y-218],[sx+110,y-218],
+                   [sx+190,y-202],[sx+102,y-208],[sx-102,y-208]],"#f1f0e9");
+          rect(sx-338,y-140,676,6,"#eff1eb");
+          // Large exposed arched steel supports on both sides of entrance.
+          for(const dir of [-1,1]) {
+            const a=sx+dir*248, b=sx+dir*173;
+            ctx.beginPath();ctx.moveTo(a,y-5);
+            ctx.lineTo(a-dir*12,y-90);ctx.lineTo(b+dir*8,y-161);
+            ctx.strokeStyle=steel;ctx.lineWidth=9;ctx.stroke();
+            ctx.beginPath();ctx.moveTo(a-dir*24,y-5);
+            ctx.lineTo(a-dir*35,y-92);ctx.lineTo(b-dir*7,y-157);
+            ctx.strokeStyle="#849ca7";ctx.lineWidth=4;ctx.stroke();
+            for(let j=0;j<6;j++){
+              const yy=y-18-j*20;
+              rect(a-dir*(4+j*2),yy,dir*1+3,3,"#f0f1e9");
+            }
+          }
+          // Entrance doors and stadium sign.
+          rect(sx-64,y-38,128,29,"#354a59");
+          for(let x=sx-55;x<sx+60;x+=17)rect(x,y-36,2,26,"#dce5e4");
+          rect(sx-119,y-155,238,22,"#3e515d");
+          label("AT&T STADIUM",sx,y-139,21,"#f6f6f2","center");
+          // Forecourt / pavement.
+          rect(sx-355,y-9,710,9,"#a7a7a0");
+          for(let x=sx-335;x<sx+345;x+=56)rect(x,y-5,28,2,"#d7d2c5");
+        }
         function groundArt(o, sx) {
           if (getWorldConfig().id === "space") return;
+          if (o.type === "attStadium") { drawAttStadium(sx, o.top); return; }
+          if (["antennas", "constructionCrane", "kennesawMountain"].includes(o.type)) {
+            drawMariettaObstacle(o, sx);
+            return;
+          }
+          if (o.type === "truistTke") {
+            drawTruistBattery(sx, o.top);
+            return;
+          }
           if (getWorldConfig().id === "night" && o.type === "oilRig") {
             // Offshore platform with lit decks and derrick.
             rect(sx - 60, o.top + 30, 120, 12, "#c67a31");
@@ -2873,6 +3126,16 @@
           ctx.save();
           ctx.translate(Math.round(sx), Math.round(a.y));
           ctx.scale(a.width / 64, a.height / 40);
+          if (a.type === "blimp") {
+            // Navy, gold and silver airship; intentionally no corporate lettering.
+            polygon([[-30,-10],[-24,-17],[12,-19],[27,-13],[33,-5],[29,5],[16,12],[-21,11],[-32,4]],"#e3e8e5");
+            polygon([[-31,-5],[31,-5],[29,5],[16,12],[-21,11],[-32,4]],"#183d78");
+            rect(-24,-7,48,3,"#efb52f");
+            polygon([[-29,-7],[-39,-16],[-35,0],[-29,4]],"#e8b735");
+            polygon([[-28,1],[-36,13],[-22,9]],"#e8b735");
+            rect(-6,12,19,6,"#b7c5c9");rect(-4,13,4,3,"#39536b");rect(3,13,4,3,"#39536b");
+            ctx.restore();return;
+          }
           if (a.type === "gulfheli") {
             // Blue/orange offshore helicopter lifting from the low rig.
             rect(-36, -2, 22, 5, "#17334d");
@@ -2897,7 +3160,9 @@
               "#b9d9e7",
             );
             rect(-12, 3, 37, 5, "#ef7f2c");
-            rect(-35, -17, 69, 3, "#6e8797");
+            // Shared across every world: animated rotor on the alternate helicopter.
+            const spin = Math.abs(Math.sin(performance.now()*0.052));
+            rect(-35*spin, -17, 69*spin, 3, "#6e8797");
             rect(-2, -18, 4, 9, "#445766");
             polygon(
               [
@@ -2908,7 +3173,7 @@
               ],
               "#174d83",
             );
-            rect(-55, -12, 3, 20, "#718a99");
+            rect(-55,-2-10*Math.abs(Math.sin(performance.now()*0.071)),3,20*Math.abs(Math.sin(performance.now()*0.071)),"#718a99");
             rect(-22, 13, 15, 3, "#202b33");
             rect(10, 13, 15, 3, "#202b33");
             rect(-18, 8, 3, 7, "#202b33");
@@ -2918,6 +3183,7 @@
             ctx.restore();
             return;
           } else if (a.type === "lightplane") {
+            // Shared across every world: all Cessna propellers animate.
             const color =
               a.color === 0
                 ? "#d44f45"
@@ -2974,7 +3240,11 @@
             );
             rect(13, -5, 7, 5, "#364b5a");
             rect(22, -4, 4, 4, "#364b5a");
-            rect(32, -14, 3, 28, "#171d25");
+            // Spinning Cessna propeller: oscillating blade silhouette and hub.
+            const propPhase = performance.now() * 0.060;
+            const bladeReach = Math.max(2, Math.abs(Math.cos(propPhase)) * 14);
+            rect(33, -bladeReach, 2, bladeReach * 2, "#171d25");
+            rect(32, -2, 4, 4, "#262b30");
             rect(30, -1, 6, 4, "#171d25");
             // Side-view Cessna gear: one visible main wheel close under the fuselage,
             // plus a tiny black wheel at the rear.
@@ -3019,7 +3289,7 @@
               color,
             );
             rect(-36, -6, 13, 2, "#171d25");
-            rect(-30, -12, 2, 15, "#171d25");
+            rect(-30,-4-8*Math.abs(Math.cos(performance.now()*0.067)),2,16*Math.abs(Math.cos(performance.now()*0.067)),"#171d25");
             polygon(
               [
                 [-17, -7],
@@ -3045,7 +3315,9 @@
             );
             rect(-10, -3, 3, 13, a.color === 0 ? "#b8c0bd" : "#8f3431");
             rect(-2, -18, 3, 10, "#171d25");
-            rect(-30, -21, 60, 3, "#171d25");
+            // Shared across every world: both helicopter main and tail rotors animate.
+            const rotorSpin=Math.abs(Math.sin(performance.now()*0.052));
+            rect(-30*rotorSpin,-21,60*rotorSpin,3,"#171d25");
             rect(-14, 13, 2, 7, "#171d25");
             rect(18, 13, 2, 7, "#171d25");
             rect(-20, 20, 48, 3, "#171d25");
@@ -3175,23 +3447,71 @@
               score += 10 * plane.score;
             }
             if (dx < o.width / 2 + halfW) {
-              const top =
+              // Collision follows the visible skyline of the combined landmark.
+              // Only TKE Tower reaches the original mountain height; the
+              // stadium and differently sized Battery buildings remain lower.
+              const landmarkX = PLANE_X - sx;
+              let top =
                 o.type === "mountain"
                   ? o.top +
                     (Math.max(0, dx - halfW) / (o.width / 2)) * (GROUND - o.top)
                   : o.top;
+              if (o.type === "constructionCrane") {
+                top = Math.abs(landmarkX) < 14 + halfW ? o.top - 18 :
+                      landmarkX > -93 - halfW && landmarkX < 45 + halfW ? o.top + 14 : GROUND;
+              }
+              if (o.type === "kennesawMountain") {
+                // Test the aircraft footprint against the mountain silhouette.
+                top=GROUND;
+                for(let px=landmarkX-halfW;px<=landmarkX+halfW;px+=3)
+                  top=Math.min(top,kennesawRidgeY(px,o.top));
+                top=Math.min(top,kennesawRidgeY(landmarkX+halfW,o.top));
+              }
+              if (o.type === "antennas") {
+                top = GROUND;
+                for (const [center, roof] of [[-48,o.top+31],[0,o.top],[49,o.top+60]])
+                  if (Math.abs(landmarkX-center)<14+halfW) top=Math.min(top,roof);
+              }
+              if (o.type === "attStadium") {
+                // Broad roof collision, matching stadium silhouette approximately.
+                top = GROUND - 218;
+              }
+              if (o.type === "truistTke") {
+                // Extents match drawTruistBattery; account for the plane width.
+                const regions = [
+                  [-169, -127, GROUND - 65],
+                  [-126, -96, GROUND - 100],
+                  [-95, -68, GROUND - 79],
+                  [-81, 122, GROUND - 155], // Stadium roof/sign
+                  [112, 141, GROUND - 95],
+                  [142, 169, GROUND - 69],
+                  [116, 166, o.top - 4],    // Full-height TKE Tower
+                ];
+                top = GROUND;
+                for (const [left, right, roofY] of regions) {
+                  if (landmarkX + halfW >= left && landmarkX - halfW <= right)
+                    top = Math.min(top, roofY);
+                }
+              }
               if (player.y + halfH > top) {
                 finish(
                   false,
                   o.type === "hangar"
                     ? "You hit a hangar."
+                    : o.type === "attStadium"
+                      ? "You hit AT&T Stadium."
                     : o.type === "tower"
                       ? "You hit a control tower."
                       : o.type === "oilRig"
                         ? "You hit an offshore oil platform."
                         : o.type === "oilRig"
                           ? "You hit a water tower."
-                          : "You hit a mountain.",
+                          : o.type === "truistTke"
+                            ? "You hit the Truist Park / TKE Tower landmark."
+                            : o.type === "antennas" ? "You hit a radio antenna."
+                            : o.type === "constructionCrane" ? "You hit a construction crane."
+                            : o.type === "kennesawMountain" ? "You hit Kennesaw Mountain."
+                            : "You hit a mountain.",
                 );
                 return;
               }
@@ -3230,7 +3550,7 @@
                   ? a.type === "lightplane"
                     ? "You hit a satellite."
                     : "You hit an asteroid."
-                  : `You hit a ${a.type === "gulfheli" ? "Gulf helicopter" : a.type === "lightplane" ? "small plane" : "small helicopter"}. Fly above or below it.`;
+                  : `You hit a ${a.type === "gulfheli" ? "Gulf helicopter" : a.type === "blimp" ? "blimp" : a.type === "lightplane" ? "small plane" : "small helicopter"}. Fly above or below it.`;
               finish(false, collisionMessage);
               return;
             }
@@ -3258,7 +3578,7 @@
           }
           for (const o of groundObstacles) {
             const sx = o.x - camera;
-            if (sx > -110 && sx < W + 110) groundArt(o, sx);
+            if (sx > -(o.width/2+20) && sx < W + o.width/2+20) groundArt(o, sx);
           }
           drawLandmark();
           for (const aircraft of airObstacles) {
