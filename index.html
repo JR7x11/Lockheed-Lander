@@ -2059,100 +2059,65 @@
               "#f4a13b",
             );
           } else if (p.id === "sr71") {
+            // SR-71 Blackbird: very angular, long and knife-like.
+            // Preserve its in-game size and behavior; only the artwork changes.
             ctx.scale(w / 100, h / 48);
             const flame = 8 + (Math.floor(camera / 28) % 8);
+            // Afterburner plume.
             polygon(
               [
-                [-48, -9],
-                [-48 - flame, -5],
-                [-46, -2],
-                [-48 - flame, 2],
-                [-48, 5],
+                [-49, -5],
+                [-50 - flame, -2],
+                [-48, 0],
+                [-50 - flame, 2],
+                [-49, 5],
               ],
               "#f49b3e",
             );
             polygon(
               [
-                [-48, -5],
-                [-52 - flame / 2, -2],
-                [-47, 1],
+                [-48, -3],
+                [-54 - flame / 2, 0],
+                [-48, 3],
               ],
               "#ffe18a",
             );
+            // Twin canted vertical fins at the rear.
+            polygon([[-45,-6],[-47,-25],[-38,-25],[-30,-6]], scheme.accent);
+            polygon([[-38,-5],[-40,-22],[-31,-22],[-24,-5]], "#262b33");
+            // Horizontal tail / aft planform.
+            polygon([[-48,2],[-34,2],[-22,5],[-35,6],[-49,5]], scheme.accent);
+            polygon([[-48,-2],[-35,-2],[-23,-5],[-36,-6],[-49,-5]], scheme.accent);
+            // Main long, flat fuselage with a very pointed nose.
             polygon(
               [
-                [-40, -7],
-                [-46, -24],
-                [-35, -21],
-                [-27, -5],
-              ],
-              scheme.accent,
-            );
-            polygon(
-              [
-                [-40, 6],
-                [-46, 23],
-                [-35, 20],
-                [-27, 4],
-              ],
-              scheme.accent,
-            );
-            polygon(
-              [
-                [-39, -5],
-                [-10, -17],
-                [4, -17],
-                [20, -7],
-                [49, -1],
-                [20, 5],
-                [4, 16],
-                [-10, 16],
-                [-39, 5],
+                [-46,-5],[-32,-7],[-18,-8],[-2,-8],[12,-8],[25,-7],[36,-5],[47,-2],[55,-1],[47,0],[36,1],[25,3],[12,5],[-2,6],[-18,6],[-32,5],[-46,3]
               ],
               scheme.body,
             );
+            // Darker upper body/chine area.
             polygon(
               [
-                [-36, -4],
-                [-9, -11],
-                [7, -9],
-                [25, -3],
-                [49, -1],
-                [21, 2],
-                [6, 9],
-                [-9, 10],
-                [-36, 4],
+                [-42,-4],[-28,-6],[-14,-7],[0,-7],[13,-7],[23,-6],[31,-5],[38,-3],[24,-2],[10,-2],[-5,-2],[-20,-2],[-34,-2],[-42,-1]
               ],
               "#252a32",
             );
+            // Lower chine / underside angle, with sharp straight lines.
             polygon(
               [
-                [8, -7],
-                [22, -4],
-                [31, -2],
-                [13, -1],
+                [-40,3],[-26,4],[-12,4],[2,4],[15,3],[26,2],[35,1],[25,7],[10,9],[-7,9],[-23,8],[-36,6]
               ],
-              scheme.glass,
+              "#20252d",
             );
-            polygon(
-              [
-                [-40, -4],
-                [-15, -13],
-                [-8, -12],
-                [-25, -2],
-              ],
-              "#303640",
-            );
-            polygon(
-              [
-                [-40, 4],
-                [-15, 12],
-                [-8, 11],
-                [-25, 2],
-              ],
-              "#303640",
-            );
-            rect(-46, -6, 5, 12, "#535b62");
+            // Engine nacelles blended into the rear body.
+            polygon([[-35,-4],[-26,-12],[-15,-12],[-8,-4],[-16,-2],[-28,-2]], "#303640");
+            polygon([[-35,2],[-26,10],[-15,10],[-8,2],[-16,1],[-28,1]], "#303640");
+            rect(-48,-4,4,8,"#4f575f");
+            // Cockpit bump / canopy.
+            polygon([[12,-8],[18,-12],[25,-12],[29,-10],[31,-7],[21,-6],[13,-6]], "#171c23");
+            polygon([[14,-8],[19,-11],[25,-11],[28,-9],[28,-7],[18,-7]], scheme.glass);
+            // Nose chine detail to emphasize the needle profile.
+            polygon([[29,-6],[40,-4],[49,-2],[55,-1],[49,0],[39,1],[29,1],[24,-1]], "#2c3139");
           } else if (p.id === "c130") {
             // C-130 Hercules: aircraft seen from the SIDE, nose to the right.
             // Four real propellers are fitted, but only the near-side engines
