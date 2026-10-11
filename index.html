@@ -3421,20 +3421,21 @@
           if (spaceBoosterDrop) {
             spaceBoosterDrop.age++;
             spaceBoosterDrop.y += spaceBoosterDrop.vy;
-            spaceBoosterDrop.vy = Math.min(10, spaceBoosterDrop.vy + 0.20);
-            spaceBoosterDrop.x -= 0.85;
+            spaceBoosterDrop.vy = Math.min(7, spaceBoosterDrop.vy + 0.12);
+            spaceBoosterDrop.x -= 0.45;
             spaceBoosterDrop.spin = Math.min(0.3, spaceBoosterDrop.spin + 0.003);
             if (spaceBoosterDrop.y > H + 90) spaceBoosterDrop = null;
           }
           if (state === "spaceLaunch") {
             takeoffFrames++;
-            // Brief separation shot, no runway-roll animation.
-            player.y = 295 - Math.min(20, takeoffFrames * 0.5);
+            // Hold the attached Shuttle and orange tank on screen for about
+            // 2.5 seconds before separation so players can see both clearly.
+            player.y = 295 - Math.min(20, takeoffFrames * 0.15);
             player.pitch = -0.04;
-            if (takeoffFrames >= 32) {
+            if (takeoffFrames >= 150) {
               spaceBoosterDrop = {
                 x: PLANE_X - 17, y: player.y + 22,
-                vy: 2.0, spin: 0, age: 0
+                vy: 1.2, spin: 0, age: 0
               };
               state = "flying";
               spaceFlightFrames = 0;
