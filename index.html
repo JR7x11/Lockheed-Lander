@@ -139,18 +139,34 @@
         line-height: 1.5;
         font-size: 13px;
       }
-      /* Keep the playfield anchored while a flight is in progress. */
+      /* iOS/Android: the entire game page stays fixed in every state.
+         Rotate the device normally: orientation media queries still resize
+         the playfield and expose the landscape menu. */
       @media (pointer: coarse) {
-        html.mobile-flight-lock,
-        body.mobile-flight-lock {
-          overscroll-behavior: none;
-        }
-        body.mobile-flight-lock {
-          position: fixed;
-          width: 100%;
-          left: 0;
-          right: 0;
+        html {
+          height: 100%;
           overflow: hidden;
+          overscroll-behavior: none;
+          touch-action: none;
+        }
+        body {
+          position: fixed;
+          inset: 0;
+          width: 100%;
+          height: 100dvh;
+          min-height: 0;
+          overflow: hidden;
+          overscroll-behavior: none;
+          touch-action: none;
+        }
+        /* Buttons/selects must still respond to taps; allow scrolling only
+           inside the landscape settings overlay if it is taller than the phone. */
+        .toolbar button, .toolbar select, #landscapeMenuButton {
+          touch-action: manipulation;
+        }
+        body.landscape-menu-open .toolbar {
+          touch-action: pan-y;
+          overscroll-behavior: contain;
         }
       }
       @media (max-width: 600px) {
@@ -300,7 +316,6 @@
         body.landscape-menu-open #landscapeMenuBackdrop { display: block; }
         body.landscape-menu-open .toolbar #start { flex: 1 1 44%; }
         body.landscape-menu-open .toolbar #landscapeMenuClose { flex: 1 1 44%; }
-        body.mobile-flight-lock.landscape-menu-open .toolbar { display: flex; }
       }
     </style>
   </head>
@@ -318,7 +333,6 @@
           aria-label="Play Lockheed Lander"
           onclick="
             document.getElementById('cinematicSplash').style.display = 'none';
-            window.scrollTo(0, 0);
             return false;
           "
         ></button>
@@ -1341,37 +1355,18 @@
         window.addEventListener("pointercancel", rearmPointerFlap);
         window.addEventListener("blur", () => rearmPointerFlap(null));
 
-        // Lock page scrolling only during active gameplay on touch devices.
-        // Restore the exact scroll position after landing/crashing/menu.
+        // Suppress the browser's page-pan gestures in every game state,
+        // including the menu, takeoff, crash, and post-flight screens.
+        // Do not cancel touchstart: iOS buttons/selects must still open.
         const coarsePointer = window.matchMedia("(pointer: coarse)");
-        let lockedScrollY = null;
-        function syncMobileFlightLock() {
-          const shouldLock = coarsePointer.matches &&
-            (state === "flying" || state === "landing");
-          if (shouldLock && lockedScrollY === null) {
-            lockedScrollY = window.scrollY;
-            document.body.style.top = `-${lockedScrollY}px`;
-            document.documentElement.classList.add("mobile-flight-lock");
-            document.body.classList.add("mobile-flight-lock");
-          } else if (!shouldLock && lockedScrollY !== null) {
-            const restoreY = lockedScrollY;
-            lockedScrollY = null;
-            document.body.classList.remove("mobile-flight-lock");
-            document.documentElement.classList.remove("mobile-flight-lock");
-            document.body.style.top = "";
-            window.scrollTo(0, restoreY);
-          }
-        }
-        // Keep the play surface stationary on mobile, including the first tap.
-        document.addEventListener("touchstart", (e) => {
-          if (lockedScrollY !== null && !mobileMenuOpen && e.cancelable) e.preventDefault();
-        }, { passive: false });
-        // iOS Safari may still scroll on gestures that begin on canvas.
         document.addEventListener("touchmove", (e) => {
-          if (lockedScrollY !== null && !mobileMenuOpen && e.cancelable) e.preventDefault();
+          if (!coarsePointer.matches || !e.cancelable) return;
+          // The landscape settings overlay can scroll internally if needed.
+          if (mobileMenuOpen && e.target.closest && e.target.closest(".toolbar")) return;
+          e.preventDefault();
         }, { passive: false });
         document.addEventListener("gesturestart", (e) => {
-          if (lockedScrollY !== null && e.cancelable) e.preventDefault();
+          if (coarsePointer.matches && e.cancelable) e.preventDefault();
         }, { passive: false });
         document.addEventListener("visibilitychange", () => {
           if (document.hidden) rearmPointerFlap(null);
@@ -3793,7 +3788,6 @@
           }
         }
         function frame(now) {
-          syncMobileFlightLock();
           if (!lastTime) lastTime = now;
           accumulator = Math.min(
             100,
