@@ -815,7 +815,7 @@
         const isSpaceUnlocked = () =>
           SPACE_UNLOCK_IDS.every((id) => {
             const paints = paintsFor(id);
-            return Number(unlocked[id] || 0) >= paints.length - 1;
+            return Number(unlocked[id] || (paints.length === 1 ? 1 : 0)) >= paints.length;
           });
 
         const DEV_SPACE_TEST = false; // Secret World 4 stays hidden until legitimately unlocked.
@@ -1187,6 +1187,7 @@
             } catch (_) {}
             refreshAircraftOptions();
             refreshPaints();
+            syncSecretSpaceWorld();
             const unlockNotice =
               !wasSR71Unlocked && isSR71Unlocked() ? " SR-71 UNLOCKED!" : "";
             setMessage(
@@ -3695,6 +3696,7 @@
         }
         refreshAircraftOptions();
         refreshPaints();
+        syncSecretSpaceWorld();
         groundObstacles = makeGroundObstacles();
         worldLandmark = makeWorldLandmark();
         player = { y: 270, vy: 0, pitch: 0 };
@@ -3709,9 +3711,7 @@
       type="module"
       src="https://static.cloudflareinsights.com/beacon.min.js"
       data-cf-beacon='{"token": "8a7301d7fd4a43ccb06f16cacce47603"}'
-    >
-      syncSecretSpaceWorld();
-    </script>
+    ></script>
     <!-- End Cloudflare Web Analytics -->
     <script>
       if ('serviceWorker' in navigator) {
