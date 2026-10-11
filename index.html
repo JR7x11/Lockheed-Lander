@@ -864,6 +864,10 @@
           landingFrames = 0;
         let takeoffFrames = 0;
         let spaceBoosterDrop = null;
+        // The shuttle remains stable briefly after tank separation until the
+        // player taps to take control; this is Space-only.
+        let spaceFlightFrames = 0;
+        let spacePilotEngaged = false;
         let helicopterTick = 0;
         let groundObstacles = [];
         let airObstacles = makeAirObstacles();
@@ -1169,6 +1173,8 @@
           landingFrames = 0;
           takeoffFrames = 0;
           spaceBoosterDrop = null;
+          spaceFlightFrames = 0;
+          spacePilotEngaged = false;
           helicopterTick = 0;
           airObstacles = makeAirObstacles();
           state = isSpaceWorld ? "spaceLaunch" : "takeoff";
@@ -1238,6 +1244,7 @@
             return;
           }
           if (state === "flying") {
+            if (getWorldConfig().id === "space") spacePilotEngaged = true;
             player.fallFrames = 0;
             player.vy = plane.lift;
             // Visual-only pitch: fixed-wing aircraft raise the nose about 18 degrees;
@@ -3430,9 +3437,11 @@
                 vy: 2.0, spin: 0, age: 0
               };
               state = "flying";
-              player.vy = -1.8;
+              spaceFlightFrames = 0;
+              spacePilotEngaged = false;
+              player.vy = 0;
               camera = 0;
-              setMessage("External tank separated! Guide the Shuttle through space. Tap or click to climb.");
+              setMessage("External tank separated! Tap or click to take control of the Shuttle.");
             }
             return;
           }
@@ -3468,16 +3477,28 @@
             return;
           }
           if (state !== "flying") return;
-          // Hold level during the initial glide, then smoothly nose down after
-          // roughly one second of continuous descent. This is visual only.
-          player.vy = Math.min(7.3, player.vy + plane.gravity);
-          player.fallFrames = player.vy > 0 ? (player.fallFrames || 0) + 1 : 0;
-          const diveDelay = 60;
-          const maxDive = (plane.id === "blackhawk" ? 11 : 23) * Math.PI / 180;
-          const diveAmount = Math.min(1, Math.max(0, (player.fallFrames - diveDelay) / 46));
-          const targetPitch = maxDive * diveAmount;
-          player.pitch += (targetPitch - (player.pitch || 0)) * 0.085;
-          if (Math.abs(player.pitch - targetPitch) < 0.001) player.pitch = targetPitch;
+          // The tank releases at orbital altitude. Keep the Shuttle centered
+          // for a short grace period while the player sees the separation and
+          // has time to respond. Tapping immediately engages normal controls.
+          const inSpace = getWorldConfig().id === "space";
+          if (inSpace) spaceFlightFrames++;
+          if (inSpace && !spacePilotEngaged && spaceFlightFrames <= 240) {
+            // Moving background and active obstacles: only vertical drift is
+            // stabilized. This is not a delayed start or a frozen screen.
+            player.vy = (280 - player.y) * 0.065;
+            player.fallFrames = 0;
+            player.pitch += (0 - (player.pitch || 0)) * 0.08;
+          } else {
+            // Original flight physics, unchanged for every other aircraft/world.
+            player.vy = Math.min(7.3, player.vy + plane.gravity);
+            player.fallFrames = player.vy > 0 ? (player.fallFrames || 0) + 1 : 0;
+            const diveDelay = 60;
+            const maxDive = (plane.id === "blackhawk" ? 11 : 23) * Math.PI / 180;
+            const diveAmount = Math.min(1, Math.max(0, (player.fallFrames - diveDelay) / 46));
+            const targetPitch = maxDive * diveAmount;
+            player.pitch += (targetPitch - (player.pitch || 0)) * 0.085;
+            if (Math.abs(player.pitch - targetPitch) < 0.001) player.pitch = targetPitch;
+          }
           player.y += player.vy;
           camera += plane.speed * worldSpeedMultiplier();
           const halfW = plane.w * 0.41,
