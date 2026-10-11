@@ -2093,6 +2093,34 @@
               ],
               "#f4a13b",
             );
+            // Space Shuttle landing gear: retracted during launch/orbit,
+            // deploys smoothly on final lunar approach, stays down on touchdown.
+            const runwayDistance = RUNWAY_X - camera - PLANE_X;
+            const gearProgress = state === "landed" || state === "landing"
+              ? 1
+              : state === "flying" && getWorldConfig().id === "space"
+                ? Math.max(0, Math.min(1, (600 - runwayDistance) / 330))
+                : 0;
+            if (gearProgress > 0) {
+              ctx.save();
+              const extension = gearProgress;
+              // Aft main gear and forward nose gear follow the shuttle's
+              // local coordinates, so they tilt naturally with the orbiter.
+              for (const [gx, gy, length, radius] of [
+                [-24, 13, 12, 4.5],
+                [31, 7, 11, 3.5],
+              ]) {
+                const bottom = gy + length * extension;
+                rect(gx - 2, gy, 4, Math.max(2, length * extension), "#737a81");
+                rect(gx - 3, bottom - 2, 6, 3, "#c2c5c8");
+                ctx.fillStyle = "#171b20";
+                ctx.beginPath();
+                ctx.ellipse(gx, bottom + 2, radius, 3.7, 0, 0, Math.PI * 2);
+                ctx.fill();
+                rect(gx - 1, bottom, 2, 2, "#899098");
+              }
+              ctx.restore();
+            }
           } else if (p.id === "sr71") {
             // SR-71 Blackbird: very angular, long and knife-like.
             // Preserve its in-game size and behavior; only the artwork changes.
@@ -3332,7 +3360,7 @@
               [right+90,493],[right+230,510],[right+230,H]], "#686763");
             // Irregular crater rims, recessed shadowed bowls and a few scattered rocks.
             const lunarCraters = [[left-105,490,34],[left+32,487,23],
-              [left+145,493,17],[right+72,488,39],[right+177,497,21]];
+              [left+145,493,17],[sx+320,487,26],[right+72,488,39],[right+177,497,21]];
             for (const [cx,cy,rx] of lunarCraters) {
               ctx.fillStyle="#a5a29d";
               ctx.beginPath();ctx.ellipse(cx,cy+1,rx+5,10,0,0,Math.PI*2);ctx.fill();
@@ -3348,28 +3376,34 @@
               ctx.fillStyle="#4b4a48";ctx.beginPath();ctx.arc(px,py,r,0,Math.PI*2);ctx.fill();
               rect(px-r,py-r,Math.max(2,r),2,"#b5b1ab");
             }
-            // Tiny background Easter egg: peeks out and waves, then ducks back.
-            // This is scenery only; it does not affect landing or collision logic.
-            const alienX = left + 32, alienY = 487;
-            const cycle = (performance.now() / 1000) % 8;
-            const emerge = cycle < 1.1 ? 0 : cycle < 1.7 ? (cycle-1.1)/0.6
-              : cycle < 4.7 ? 1 : cycle < 5.3 ? (5.3-cycle)/0.6 : 0;
-            if (emerge > 0) {
-              ctx.save();
-              ctx.beginPath();ctx.ellipse(alienX,alienY,20,6,0,0,Math.PI*2);ctx.clip();
-              const headY = alienY + 10 - emerge*23;
-              rect(alienX-5,headY+11,10,15,"#51c944");
-              ctx.fillStyle="#6be456";ctx.beginPath();
-              ctx.ellipse(alienX,headY,9,11,0,0,Math.PI*2);ctx.fill();
-              ctx.fillStyle="#15231b";
-              ctx.beginPath();ctx.ellipse(alienX-4,headY-1,2.3,3.3,-0.25,0,Math.PI*2);ctx.fill();
-              ctx.beginPath();ctx.ellipse(alienX+4,headY-1,2.3,3.3,0.25,0,Math.PI*2);ctx.fill();
-              const wave = Math.sin(performance.now()/160)*4;
-              ctx.strokeStyle="#6be456";ctx.lineWidth=3;
-              ctx.beginPath();ctx.moveTo(alienX+6,headY+13);
-              ctx.lineTo(alienX+13,headY+5+wave);
-              ctx.lineTo(alienX+16,headY+1+wave);ctx.stroke();
-              ctx.restore();
+            // The alien lives in a crater toward the far end of the runway.
+            // It stays hidden on approach and pops up to wave only after a
+            // successful lunar touchdown; purely decorative, no hitbox.
+            const alienX = sx + 320, alienY = 487;
+            if (state === "landing" || state === "landed") {
+              const emerge = state === "landed" ? 1 : Math.min(1, Math.max(0, (landingFrames - 8) / 24));
+              if (emerge > 0) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(alienX - 25, 0, 50, alienY + 3);
+                ctx.clip();
+                const headY = alienY + 15 - emerge * 32;
+                rect(alienX-5,headY+11,10,15,"#51c944");
+                ctx.fillStyle="#6be456";ctx.beginPath();
+                ctx.ellipse(alienX,headY,9,11,0,0,Math.PI*2);ctx.fill();
+                ctx.fillStyle="#15231b";
+                ctx.beginPath();ctx.ellipse(alienX-4,headY-1,2.3,3.3,-0.25,0,Math.PI*2);ctx.fill();
+                ctx.beginPath();ctx.ellipse(alienX+4,headY-1,2.3,3.3,0.25,0,Math.PI*2);ctx.fill();
+                const wave = Math.sin(performance.now()/160)*4;
+                ctx.strokeStyle="#6be456";ctx.lineWidth=3;
+                ctx.beginPath();ctx.moveTo(alienX+6,headY+13);
+                ctx.lineTo(alienX+13,headY+5+wave);
+                ctx.lineTo(alienX+16,headY+1+wave);ctx.stroke();
+                ctx.restore();
+                // Crater's near rim masks the alien's lower body.
+                ctx.strokeStyle="#b8b5af";ctx.lineWidth=3;
+                ctx.beginPath();ctx.ellipse(alienX,alienY+3,28,9,0,0,Math.PI);ctx.stroke();
+              }
             }
             rect(sx-85, 461, 790, 15, "#282e3b");
             rect(sx-85, 461, 790, 3, "#b4b8c1");
@@ -3377,12 +3411,12 @@
             for (let i=0;i<12;i++) {
               rect(sx-84+i*70,457,5,4,"#b9d7ff");
             }
-            rect(sx-7,420,14,41,"#d9dce5");
-            rect(sx-19,415,38,7,"#f2f4fa");
-            label("MOON LANDING",sx,404,16,"#e7ecff","center");
+            rect(sx-7,385,14,76,"#d9dce5");
+            rect(sx-19,380,38,7,"#f2f4fa");
+            label("MOON LANDING",sx,369,16,"#e7ecff","center");
             if (state === "flying" && sx < W+200 && sx > 0) {
-              rect(Math.max(0,sx-205),418,Math.min(205,sx),3,"#c6dcff");
-              label("LUNAR APPROACH 395-455",Math.max(18,sx-245),407,13,"#e1edff");
+              rect(Math.max(0,sx-205),383,Math.min(205,sx),3,"#c6dcff");
+              label("LUNAR APPROACH 350-455",Math.max(18,sx-245),372,13,"#e1edff");
             }
             ctx.restore();
             return;
@@ -3754,7 +3788,7 @@
           }
           if (RUNWAY_X - camera <= PLANE_X) {
             if (
-              player.y >= (getWorldConfig().id === "space" ? 395 : 300) &&
+              player.y >= (getWorldConfig().id === "space" ? 350 : 300) &&
               player.y <= (getWorldConfig().id === "space" ? 455 : 390) &&
               Math.abs(player.vy) <= 4.6
             ) {
