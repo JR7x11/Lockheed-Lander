@@ -863,6 +863,7 @@
           accumulator = 0,
           landingFrames = 0;
         let takeoffFrames = 0;
+        let spaceBoosterDrop = null;
         let helicopterTick = 0;
         let groundObstacles = [];
         let airObstacles = makeAirObstacles();
@@ -1126,7 +1127,7 @@
             : "SR-71 — land all six to unlock";
         }
         function updateWorldControlState() {
-          const activeFlight = state === "flying" || state === "landing";
+          const activeFlight = ["spaceLaunch", "takeoff", "flying", "landing"].includes(state);
           worldSelect.disabled = activeFlight && !mobileMenuOpen;
         }
         function setMessage(text) {
@@ -1154,26 +1155,35 @@
           }
           groundObstacles = makeGroundObstacles();
           worldLandmark = makeWorldLandmark();
-          player = { y: GROUND - plane.h * 0.42 - 3, vy: 0, pitch: 0, fallFrames: 0 };
+          const isSpaceWorld = getWorldConfig().id === "space";
+          player = {
+            y: isSpaceWorld ? 295 : GROUND - plane.h * 0.42 - 3,
+            vy: 0,
+            pitch: 0,
+            fallFrames: 0,
+          };
           camera = 0;
           passed = 0;
           airPassed = 0;
           score = 0;
           landingFrames = 0;
           takeoffFrames = 0;
+          spaceBoosterDrop = null;
           helicopterTick = 0;
           airObstacles = makeAirObstacles();
-          state = getWorldConfig().id === "space" ? "flying" : "takeoff";
+          state = isSpaceWorld ? "spaceLaunch" : "takeoff";
           aircraftSelect.disabled = true;
           paintSelect.disabled = true;
           startButton.textContent = "RESTART";
           updateWorldControlState();
           setMessage(
-            `${plane.name} taking off! Click or tap to climb. Landing gear retracts after liftoff.`,
+            isSpaceWorld
+              ? "External tank separation in progress..."
+              : `${plane.name} taking off! Click or tap to climb. Landing gear retracts after liftoff.`,
           );
         }
         function finish(success, reason = "") {
-          if (state !== "flying" && state !== "landing" && state !== "takeoff") return;
+          if (!["spaceLaunch", "flying", "landing", "takeoff"].includes(state)) return;
           state = success ? "landed" : "crashed";
           aircraftSelect.disabled = false;
           paintSelect.disabled = false;
@@ -1223,8 +1233,8 @@
             newFlight();
             return;
           }
-          if (state === "takeoff") {
-            // Takeoff animation runs to completion without skipping the runway roll.
+          if (state === "takeoff" || state === "spaceLaunch") {
+            // Launch / takeoff animations run to completion without skipping ahead.
             return;
           }
           if (state === "flying") {
@@ -1260,7 +1270,7 @@
         );
         worldSelect.addEventListener("change", () => {
           const world = getWorldConfig();
-          if ((state === "flying" || state === "landing") && !mobileMenuOpen) return;
+          if ((state === "spaceLaunch" || state === "takeoff" || state === "flying" || state === "landing") && !mobileMenuOpen) return;
           if (world.id === "space") {
             plane = PLANES.find((p) => p.id === "shuttle");
             paint = SHUTTLE_PAINTS[0];
@@ -2642,6 +2652,24 @@
 
           ctx.restore();
         }
+        function drawShuttleExternalTank(dropState = null) {
+          const attached = !dropState;
+          const tankX = attached ? PLANE_X - 9 : dropState.x;
+          const tankY = attached ? player.y + 18 : dropState.y;
+          ctx.save();
+          ctx.translate(Math.round(tankX), Math.round(tankY));
+          ctx.rotate(attached ? (player.pitch || 0) : dropState.spin);
+          // Orange shuttle external tank only: long curved nose, cylindrical body,
+          // tapered aft end, dark piping and retaining bands.
+          polygon([[-46, 0], [-37,-14], [18,-17], [44,-8], [52,1],
+                   [44,13], [18,18], [-37,15]], '#b96920');
+          polygon([[-42,-2], [-34,-11], [18,-12], [40,-5], [43,3],
+                   [18,11],[-35,10]], '#dc8730');
+          rect(-23, -13, 4, 26, '#a85d1b');
+          rect(22, -11, 4, 23, '#b36a23');
+          rect(-19, 8, 43, 3, '#e1a154');
+          ctx.restore();
+        }
         // World 1: Truist Park / The Battery with the TKE tower as the
         // actual mountain-height obstacle. Drawn using the game's native shapes.
         function drawTruistBattery(sx, top) {
@@ -3313,7 +3341,7 @@
               rect(sx - 85 + i * 67, GROUND - 26, 5, 7, "#ffe7a2");
           }
           label(
-            "LAND",
+            world.id === "space" ? "RE-ENTRY" : "LAND",
             sx,
             GROUND - 49,
             15,
@@ -3329,7 +3357,7 @@
               world.id === "night" ? "#f9d55b" : "#f3d87b",
             );
             label(
-              "SAFE APPROACH 300-390",
+              world.id === "space" ? "RE-ENTRY WINDOW 300-390" : "SAFE APPROACH 300-390",
               Math.max(18, sx - 245),
               332,
               13,
@@ -3381,6 +3409,33 @@
         function update() {
           if (mobileMenuOpen) return;
           moveHelicopters();
+          // After separation the orange tank continues falling while normal
+          // Shuttle flight physics, obstacles, and player input are active.
+          if (spaceBoosterDrop) {
+            spaceBoosterDrop.age++;
+            spaceBoosterDrop.y += spaceBoosterDrop.vy;
+            spaceBoosterDrop.vy = Math.min(10, spaceBoosterDrop.vy + 0.20);
+            spaceBoosterDrop.x -= 0.85;
+            spaceBoosterDrop.spin = Math.min(0.3, spaceBoosterDrop.spin + 0.003);
+            if (spaceBoosterDrop.y > H + 90) spaceBoosterDrop = null;
+          }
+          if (state === "spaceLaunch") {
+            takeoffFrames++;
+            // Brief separation shot, no runway-roll animation.
+            player.y = 295 - Math.min(20, takeoffFrames * 0.5);
+            player.pitch = -0.04;
+            if (takeoffFrames >= 32) {
+              spaceBoosterDrop = {
+                x: PLANE_X - 17, y: player.y + 22,
+                vy: 2.0, spin: 0, age: 0
+              };
+              state = "flying";
+              player.vy = -1.8;
+              camera = 0;
+              setMessage("External tank separated! Guide the Shuttle through space. Tap or click to climb.");
+            }
+            return;
+          }
           if (state === "takeoff") {
             takeoffFrames++;
             // Longer runway roll so the player clearly reads the takeoff sequence.
@@ -3431,7 +3486,8 @@
             finish(false, "You climbed too high.");
             return;
           }
-          if (player.y + halfH > GROUND - 1) {
+          const lowerBoundary = getWorldConfig().id === "space" ? H - 18 : GROUND - 1;
+          if (player.y + halfH > lowerBoundary) {
             const worldId = getWorldConfig().id;
             finish(
               false,
@@ -3630,6 +3686,10 @@
           departureRunway();
           departureAirportStructures();
           const preview = state === "menu";
+          if (getWorldConfig().id === "space") {
+            if (state === "spaceLaunch") drawShuttleExternalTank();
+            else if (spaceBoosterDrop) drawShuttleExternalTank(spaceBoosterDrop);
+          }
           // Animated takeoff exhaust: F-22, F-35 and F-16 only.
           // Draw behind the original plane artwork; no changes to aircraft sprites.
           if (state === "takeoff" && ["f22", "f35", "f16"].includes(plane.id)) {
@@ -3719,6 +3779,10 @@
             setMessage("Choose a plane and start your flight.");
           else if (world.id === "ftw")
             setMessage("Choose a plane and start your flight.");
+          else if (world.id === "space")
+            setMessage(
+              "Space world selected. Launch on the booster stack, then guide the Shuttle through orbit.",
+            );
           else
             setMessage(
               "Night world selected. Keep the approach gentle and watch the runway lights.",
