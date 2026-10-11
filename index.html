@@ -824,6 +824,16 @@
           let opt = Array.from(worldSelect.options).find(
             (o) => o.value === "space",
           );
+          // Surface actual saved progression in the selector tooltip for debugging
+          // without resetting it or exposing the secret in the normal world list.
+          const missingPaints = ORIGINAL_IDS.map((id) => {
+            const have = Math.max(1, Number(unlocked[id]) || 1);
+            const needed = paintsFor(id).length;
+            return have < needed ? `${id.toUpperCase()}: ${have}/${needed}` : null;
+          }).filter(Boolean);
+          worldSelect.title = missingPaints.length
+            ? `Secret Space unlock progress — ${missingPaints.join(", ")}`
+            : "Space unlock requirements completed";
           if ((DEV_SPACE_TEST || isSpaceUnlocked()) && !opt) {
             if (
               !DEV_SPACE_TEST &&
@@ -1190,8 +1200,10 @@
             syncSecretSpaceWorld();
             const unlockNotice =
               !wasSR71Unlocked && isSR71Unlocked() ? " SR-71 UNLOCKED!" : "";
+            const remaining = ORIGINAL_IDS.reduce((sum, id) =>
+              sum + Math.max(0, paintsFor(id).length - Math.max(1, Number(unlocked[id]) || 1)), 0);
             setMessage(
-              `LANDED! Score ${score}. ${next > old ? `Unlocked ${schemes[next - 1].name} paint for the ${plane.name}!` : "All paint schemes unlocked for this aircraft."}${unlockNotice}`,
+              `LANDED! Score ${score}. ${next > old ? `Unlocked ${schemes[next - 1].name} paint for the ${plane.name}!` : "All paint schemes unlocked for this aircraft."}${unlockNotice}${remaining > 0 ? ` Secret Space: ${remaining} paint unlocks remaining.` : " Secret Space requirements complete!"}`,
             );
           } else
             setMessage(
@@ -3618,6 +3630,24 @@
           departureRunway();
           departureAirportStructures();
           const preview = state === "menu";
+          // Animated takeoff exhaust: F-22, F-35 and F-16 only.
+          // Draw behind the original plane artwork; no changes to aircraft sprites.
+          if (state === "takeoff" && ["f22", "f35", "f16"].includes(plane.id)) {
+            const pulse = takeoffFrames;
+            const power = Math.min(1, (pulse + 8) / 32);
+            const length = (19 + (pulse % 6) * 2 + Math.sin(pulse * 0.41) * 4) * power;
+            const rearX = -plane.w * (plane.id === "f16" ? 0.46 : 0.48);
+            ctx.save();
+            ctx.translate(Math.round(PLANE_X), Math.round(player.y));
+            ctx.rotate(player.pitch || 0);
+            const engines = plane.id === "f22" ? [-3.2, 3.2] : [0];
+            for (const engineY of engines) {
+              polygon([[rearX + 3, engineY - 4], [rearX - length, engineY], [rearX + 3, engineY + 4]], "#f1782e");
+              polygon([[rearX + 1, engineY - 2.5], [rearX - length * 0.76, engineY], [rearX + 1, engineY + 2.5]], "#ffd05d");
+              polygon([[rearX, engineY - 1], [rearX - length * 0.47, engineY], [rearX, engineY + 1]], "#fff4ba");
+            }
+            ctx.restore();
+          }
           drawPlane(
             PLANE_X,
             preview ? 270 : player.y,
