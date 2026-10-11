@@ -3376,10 +3376,16 @@
               ctx.fillStyle="#4b4a48";ctx.beginPath();ctx.arc(px,py,r,0,Math.PI*2);ctx.fill();
               rect(px-r,py-r,Math.max(2,r),2,"#b5b1ab");
             }
+            rect(sx-85, 461, 790, 15, "#282e3b");
+            rect(sx-85, 461, 790, 3, "#b4b8c1");
+            for (let i=0;i<11;i++) rect(sx-57+i*70,467,34,3,"#e8e9dd");
+            for (let i=0;i<12;i++) {
+              rect(sx-84+i*70,457,5,4,"#b9d7ff");
+            }
             // The alien lives in a crater toward the far end of the runway.
             // It stays hidden on approach and pops up to wave only after a
             // successful lunar touchdown; purely decorative, no hitbox.
-            const alienX = sx + 320, alienY = 487;
+            const alienX = sx + 430, alienY = 492;
             if (state === "landing" || state === "landed") {
               const emerge = state === "landed" ? 1 : Math.min(1, Math.max(0, (landingFrames - 8) / 24));
               if (emerge > 0) {
@@ -3404,12 +3410,6 @@
                 ctx.strokeStyle="#b8b5af";ctx.lineWidth=3;
                 ctx.beginPath();ctx.ellipse(alienX,alienY+3,28,9,0,0,Math.PI);ctx.stroke();
               }
-            }
-            rect(sx-85, 461, 790, 15, "#282e3b");
-            rect(sx-85, 461, 790, 3, "#b4b8c1");
-            for (let i=0;i<11;i++) rect(sx-57+i*70,467,34,3,"#e8e9dd");
-            for (let i=0;i<12;i++) {
-              rect(sx-84+i*70,457,5,4,"#b9d7ff");
             }
             rect(sx-7,385,14,76,"#d9dce5");
             rect(sx-19,380,38,7,"#f2f4fa");
@@ -3770,7 +3770,7 @@
               airPassed = i + 1;
               score += 5 * plane.score;
             }
-            if (a.noCollision) continue;
+            if (a.noCollision || (getWorldConfig().id === "space" && a.type !== "lightplane" && a.x > RUNWAY_X - 900)) continue;
             const activeHeight = a.height * 0.42;
             if (
               Math.abs(sx - PLANE_X) < a.width * 0.46 + halfW &&
@@ -3814,7 +3814,7 @@
           drawLandmark();
           for (const aircraft of airObstacles) {
             const sx = aircraft.x - camera;
-            if (sx > -70 && sx < W + 70) airObstacleArt(aircraft, sx);
+            if (sx > -70 && sx < W + 70 && !(getWorldConfig().id === "space" && aircraft.type !== "lightplane" && aircraft.x > RUNWAY_X - 900)) airObstacleArt(aircraft, sx);
           }
           runway();
           departureRunway();
