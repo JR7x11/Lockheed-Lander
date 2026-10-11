@@ -3316,6 +3316,77 @@
         function runway() {
           const world = getWorldConfig();
           const sx = RUNWAY_X - camera;
+          if (world.id === "space") {
+            // The finish line is a lunar landing strip, not Earth's atmosphere.
+            // Keep it tied to world coordinates so it scrolls into view naturally.
+            const left = sx - 320, right = sx + 860;
+            if (right < 0 || left > W) return;
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, 0, W, H);
+            ctx.clip();
+            // Airless lunar regolith: neutral charcoal/ash gray, no blue tint.
+            polygon([[left-220,H],[left-220,490],[left-110,473],[left-20,480],
+              [left+90,464],[left+210,476],[right+100,476],[right+230,491],[right+230,H]], "#85837f");
+            polygon([[left-220,H],[left-220,502],[left-40,490],[left+130,497],
+              [right+90,493],[right+230,510],[right+230,H]], "#686763");
+            // Irregular crater rims, recessed shadowed bowls and a few scattered rocks.
+            const lunarCraters = [[left-105,490,34],[left+32,487,23],
+              [left+145,493,17],[right+72,488,39],[right+177,497,21]];
+            for (const [cx,cy,rx] of lunarCraters) {
+              ctx.fillStyle="#a5a29d";
+              ctx.beginPath();ctx.ellipse(cx,cy+1,rx+5,10,0,0,Math.PI*2);ctx.fill();
+              ctx.fillStyle="#3e3e3d";
+              ctx.beginPath();ctx.ellipse(cx,cy,rx,7,0,0,Math.PI*2);ctx.fill();
+              ctx.fillStyle="#5b5a57";
+              ctx.beginPath();ctx.ellipse(cx,cy+2,rx-5,4,0,0,Math.PI*2);ctx.fill();
+              ctx.strokeStyle="#d1cec8";ctx.lineWidth=2;ctx.beginPath();
+              ctx.ellipse(cx,cy-2,rx+2,8,0,Math.PI,Math.PI*2);ctx.stroke();
+            }
+            for (const [px,py,r] of [[left-170,493,3],[left-58,505,2],
+              [left+78,501,3],[right+127,507,4],[right+206,505,2]]) {
+              ctx.fillStyle="#4b4a48";ctx.beginPath();ctx.arc(px,py,r,0,Math.PI*2);ctx.fill();
+              rect(px-r,py-r,Math.max(2,r),2,"#b5b1ab");
+            }
+            // Tiny background Easter egg: peeks out and waves, then ducks back.
+            // This is scenery only; it does not affect landing or collision logic.
+            const alienX = left + 32, alienY = 487;
+            const cycle = (performance.now() / 1000) % 8;
+            const emerge = cycle < 1.1 ? 0 : cycle < 1.7 ? (cycle-1.1)/0.6
+              : cycle < 4.7 ? 1 : cycle < 5.3 ? (5.3-cycle)/0.6 : 0;
+            if (emerge > 0) {
+              ctx.save();
+              ctx.beginPath();ctx.ellipse(alienX,alienY,20,6,0,0,Math.PI*2);ctx.clip();
+              const headY = alienY + 10 - emerge*23;
+              rect(alienX-5,headY+11,10,15,"#51c944");
+              ctx.fillStyle="#6be456";ctx.beginPath();
+              ctx.ellipse(alienX,headY,9,11,0,0,Math.PI*2);ctx.fill();
+              ctx.fillStyle="#15231b";
+              ctx.beginPath();ctx.ellipse(alienX-4,headY-1,2.3,3.3,-0.25,0,Math.PI*2);ctx.fill();
+              ctx.beginPath();ctx.ellipse(alienX+4,headY-1,2.3,3.3,0.25,0,Math.PI*2);ctx.fill();
+              const wave = Math.sin(performance.now()/160)*4;
+              ctx.strokeStyle="#6be456";ctx.lineWidth=3;
+              ctx.beginPath();ctx.moveTo(alienX+6,headY+13);
+              ctx.lineTo(alienX+13,headY+5+wave);
+              ctx.lineTo(alienX+16,headY+1+wave);ctx.stroke();
+              ctx.restore();
+            }
+            rect(sx-85, 461, 790, 15, "#282e3b");
+            rect(sx-85, 461, 790, 3, "#b4b8c1");
+            for (let i=0;i<11;i++) rect(sx-57+i*70,467,34,3,"#e8e9dd");
+            for (let i=0;i<12;i++) {
+              rect(sx-84+i*70,457,5,4,"#b9d7ff");
+            }
+            rect(sx-7,420,14,41,"#d9dce5");
+            rect(sx-19,415,38,7,"#f2f4fa");
+            label("MOON LANDING",sx,404,16,"#e7ecff","center");
+            if (state === "flying" && sx < W+200 && sx > 0) {
+              rect(Math.max(0,sx-205),418,Math.min(205,sx),3,"#c6dcff");
+              label("LUNAR APPROACH 395-455",Math.max(18,sx-245),407,13,"#e1edff");
+            }
+            ctx.restore();
+            return;
+          }
           if (sx > W + 800 || sx < -W) return;
           rect(
             Math.max(0, sx - 120),
@@ -3521,7 +3592,7 @@
               worldId === "night"
                 ? "You crashed into the water."
                 : worldId === "space"
-                  ? "You descended into Earth's atmosphere."
+                  ? "You drifted below the safe lunar approach."
                   : "You hit the ground.",
             );
             return;
@@ -3683,8 +3754,8 @@
           }
           if (RUNWAY_X - camera <= PLANE_X) {
             if (
-              player.y >= 300 &&
-              player.y <= 390 &&
+              player.y >= (getWorldConfig().id === "space" ? 395 : 300) &&
+              player.y <= (getWorldConfig().id === "space" ? 455 : 390) &&
               Math.abs(player.vy) <= 4.6
             ) {
               state = "landing";
