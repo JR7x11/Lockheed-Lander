@@ -3378,22 +3378,84 @@
               ctx.textAlign = "left";
             }
           } else if (o.type === "oilRig") {
-            drawOffshorePlatform(sx, o.top, { night: false, helipad: !!o.helipad, sidePlatform: !!o.sidePlatform });
-          } else if (o.type === "oilRig") {
-            rect(
-              sx - 8,
-              o.top + 26,
-              16,
-              GROUND - o.top - 26,
-              night ? "#7d91a3" : "#a3b4c4",
-            );
-            rect(sx - 38, o.top + 8, 76, 22, night ? "#cfe4ee" : "#dfe8ef");
-            rect(sx - 30, o.top - 18, 60, 18, night ? "#b4cad6" : "#cdd9e3");
-            rect(sx - 18, o.top - 46, 36, 28, night ? "#c9d7e3" : "#d5dee8");
-            rect(sx - 16, o.top - 58, 32, 12, night ? "#a9b6c1" : "#bfc8d0");
-            rect(sx - 14, o.top - 6, 28, 10, night ? "#70849b" : "#7a8d9d");
-            rect(sx - 2, o.top + 8, 4, 30, night ? "#60748c" : "#738396");
-            rect(sx - 22, GROUND - 10, 44, 10, night ? "#5d7387" : "#5b7185");
+            if (getWorldConfig().id === "ftw") {
+              // World 2 / FTW keeps the Texas pumpjack / oil derrick look.
+              const steel = "#4e5960";
+              const dark = "#30383d";
+              const rust = "#9a5a35";
+              const beam = "#6f4b38";
+              rect(sx - 58, GROUND - 12, 116, 12, dark);
+              polygon(
+                [
+                  [sx - 24, GROUND - 12],
+                  [sx - 8, o.top + 48],
+                  [sx + 8, o.top + 48],
+                  [sx + 28, GROUND - 12],
+                ],
+                steel,
+              );
+              rect(sx - 5, o.top + 47, 10, GROUND - o.top - 59, dark);
+              polygon(
+                [
+                  [sx - 18, GROUND - 30],
+                  [sx + 16, o.top + 72],
+                  [sx + 21, o.top + 78],
+                  [sx - 13, GROUND - 24],
+                ],
+                dark,
+              );
+              polygon(
+                [
+                  [sx + 18, GROUND - 30],
+                  [sx - 13, o.top + 72],
+                  [sx - 18, o.top + 78],
+                  [sx + 13, GROUND - 24],
+                ],
+                dark,
+              );
+              polygon(
+                [
+                  [sx - 39, o.top + 30],
+                  [sx - 33, o.top + 18],
+                  [sx + 53, o.top + 48],
+                  [sx + 48, o.top + 60],
+                ],
+                beam,
+              );
+              polygon(
+                [
+                  [sx - 50, o.top + 2],
+                  [sx - 39, o.top + 8],
+                  [sx - 32, o.top + 22],
+                  [sx - 38, o.top + 39],
+                  [sx - 51, o.top + 50],
+                  [sx - 58, o.top + 45],
+                  [sx - 57, o.top + 27],
+                  [sx - 51, o.top + 12],
+                ],
+                rust,
+              );
+              rect(sx - 55, o.top + 45, 5, GROUND - o.top - 57, dark);
+              rect(sx + 49, o.top + 55, 5, GROUND - o.top - 73, dark);
+              rect(sx + 41, GROUND - 27, 21, 15, rust);
+              rect(sx - 8, o.top + 43, 16, 10, "#b98a55");
+              if (o.sidePlatform) {
+                rect(sx + 34, GROUND - 60, 70, 6, steel);
+                rect(sx + 28, GROUND - 54, 82, 6, dark);
+                rect(sx + 38, GROUND - 48, 62, 4, "#6f7c84");
+                rect(sx + 45, GROUND - 76, 4, 22, dark);
+                rect(sx + 83, GROUND - 76, 4, 22, dark);
+                rect(sx + 63, GROUND - 48, 10, 2, "#d8c67a");
+                rect(sx + 68, GROUND - 53, 2, 12, "#d8c67a");
+                rect(sx + 46, GROUND - 45, 4, 10, "#e6efe9");
+                rect(sx + 58, GROUND - 45, 4, 10, "#e6efe9");
+                rect(sx + 74, GROUND - 45, 4, 10, "#e6efe9");
+                rect(sx + 86, GROUND - 45, 4, 10, "#e6efe9");
+              }
+            } else {
+              // Night ocean and Lamprey air segment use the newer offshore rigs.
+              drawOffshorePlatform(sx, o.top, { night: false, helipad: !!o.helipad, sidePlatform: !!o.sidePlatform });
+            }
           } else {
             polygon(
               [
