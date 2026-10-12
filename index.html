@@ -719,11 +719,21 @@
         ];
         const SR71_PAINTS = [
           {
-            name: "Blackbird",
+            name: "Skunkworks",
             body: "#141820",
             accent: "#242b34",
             glass: "#5b7789",
           },
+          ...PAINTS.slice(1).map((scheme) =>
+            scheme.name === "High Visibility"
+              ? {
+                  name: "Arctic",
+                  body: "#e5e9e7",
+                  accent: "#727d82",
+                  glass: "#405f72",
+                }
+              : scheme
+          ),
         ];
         const LAMPREY_UAV_PAINTS = [
           { name:"Standard Gray", body:"#aab9c5", accent:"#566b7c", glass:"#334956" },
@@ -2298,6 +2308,15 @@
             // SR-71 Blackbird: very angular, long and knife-like.
             // Preserve its in-game size and behavior; only the artwork changes.
             ctx.scale(w / 100, h / 48);
+            // Keep the original black scheme intact while recoloring the
+            // distinct SR-71 panels for the standard jet paint unlocks.
+            const srDefault = scheme.name === "Skunkworks";
+            const srUpper = srDefault ? "#252a32" : scheme.accent;
+            const srLower = srDefault ? "#20252d" : scheme.body;
+            const srNacelle = srDefault ? "#303640" : scheme.accent;
+            const srNose = srDefault ? "#2c3139" : scheme.accent;
+            const srFarFin = srDefault ? "#262b33" : scheme.body;
+            const srCockpit = srDefault ? "#171c23" : "#172634";
             const flame = 8 + (Math.floor(camera / 28) % 8);
             // Afterburner plume.
             polygon(
@@ -2320,7 +2339,7 @@
             );
             // Twin canted vertical fins at the rear.
             polygon([[-45,-6],[-47,-25],[-38,-25],[-30,-6]], scheme.accent);
-            polygon([[-38,-5],[-40,-22],[-31,-22],[-24,-5]], "#262b33");
+            polygon([[-38,-5],[-40,-22],[-31,-22],[-24,-5]], srFarFin);
             // Horizontal tail / aft planform.
             polygon([[-48,2],[-34,2],[-22,5],[-35,6],[-49,5]], scheme.accent);
             polygon([[-48,-2],[-35,-2],[-23,-5],[-36,-6],[-49,-5]], scheme.accent);
@@ -2336,24 +2355,24 @@
               [
                 [-42,-4],[-28,-6],[-14,-7],[0,-7],[13,-7],[23,-6],[31,-5],[38,-3],[24,-2],[10,-2],[-5,-2],[-20,-2],[-34,-2],[-42,-1]
               ],
-              "#252a32",
+              srUpper,
             );
             // Lower chine / underside angle, with sharp straight lines.
             polygon(
               [
                 [-40,3],[-26,4],[-12,4],[2,4],[15,3],[26,2],[35,1],[25,7],[10,9],[-7,9],[-23,8],[-36,6]
               ],
-              "#20252d",
+              srLower,
             );
             // Engine nacelles blended into the rear body.
-            polygon([[-35,-4],[-26,-12],[-15,-12],[-8,-4],[-16,-2],[-28,-2]], "#303640");
-            polygon([[-35,2],[-26,10],[-15,10],[-8,2],[-16,1],[-28,1]], "#303640");
+            polygon([[-35,-4],[-26,-12],[-15,-12],[-8,-4],[-16,-2],[-28,-2]], srNacelle);
+            polygon([[-35,2],[-26,10],[-15,10],[-8,2],[-16,1],[-28,1]], srNacelle);
             rect(-48,-4,4,8,"#4f575f");
             // Cockpit bump / canopy.
-            polygon([[12,-8],[18,-12],[25,-12],[29,-10],[31,-7],[21,-6],[13,-6]], "#171c23");
+            polygon([[12,-8],[18,-12],[25,-12],[29,-10],[31,-7],[21,-6],[13,-6]], srCockpit);
             polygon([[14,-8],[19,-11],[25,-11],[28,-9],[28,-7],[18,-7]], scheme.glass);
             // Nose chine detail to emphasize the needle profile.
-            polygon([[29,-6],[40,-4],[49,-2],[55,-1],[49,0],[39,1],[29,1],[24,-1]], "#2c3139");
+            polygon([[29,-6],[40,-4],[49,-2],[55,-1],[49,0],[39,1],[29,1],[24,-1]], srNose);
           } else if (p.id === "c130") {
             // C-130 Hercules: aircraft seen from the SIDE, nose to the right.
             // Four real propellers are fitted, but only the near-side engines
