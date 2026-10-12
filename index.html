@@ -363,7 +363,7 @@
               <option value="blackhawk">Black Hawk</option>
               <option value="f16">F-16</option>
               <option value="f22">F-22</option>
-              <option value="lampreyUAV" hidden>Lamprey Air Drone</option>
+              <option value="lampreyUAV" disabled>Lamprey MMAUV</option>
               <option value="sr71" disabled>
                 SR-71 — land all six to unlock
               </option>
@@ -459,7 +459,7 @@
           document.body.classList.add("landscape-menu-open");
           mobileMenuButton.setAttribute("aria-expanded", "true");
           worldSelect.disabled = false;
-          aircraftSelect.disabled = inLamprey();
+          aircraftSelect.disabled = false;
           paintSelect.disabled = false;
           mobileMenuClose.textContent = pausedFlightState ? "RESUME FLIGHT" : "CLOSE MENU";
           rearmPointerFlap(null);
@@ -911,16 +911,31 @@
           return inLamprey() && lampreySharkUnlocked() && lampreySkinSelect.value === "shark";
         }
         function refreshLampreyAircraft() {
+          const onLampreyWorld = inLamprey();
           const opt = aircraftSelect.querySelector('option[value="lampreyUAV"]');
-          opt.hidden = !inLamprey();
-          if (inLamprey()) {
+          // Keep Lamprey MMAUV visible on all levels; it is selectable only in
+          // the water world. Disable the ordinary aircraft *options*, not the
+          // whole aircraft dropdown, when the Lamprey world is selected.
+          opt.hidden = false;
+          opt.disabled = !onLampreyWorld;
+          opt.textContent = "Lamprey MMAUV";
+          for (const option of aircraftSelect.options) {
+            if (option.value === "lampreyUAV") continue;
+            option.disabled = onLampreyWorld ||
+              (option.value === "sr71" && !isSR71Unlocked());
+          }
+          if (onLampreyWorld) {
             if (aircraftSelect.value !== "lampreyUAV") priorAircraft = aircraftSelect.value;
             aircraftSelect.value = "lampreyUAV";
-            aircraftSelect.disabled = true;
           } else if (aircraftSelect.value === "lampreyUAV") {
-            aircraftSelect.value = priorAircraft || "c130";
-            aircraftSelect.disabled = false;
+            const previous = aircraftSelect.querySelector(`option[value="${priorAircraft}"]`);
+            aircraftSelect.value = previous && !previous.disabled ? priorAircraft : "c130";
           }
+          // Only lock the dropdown during active gameplay, not while choosing
+          // the Lamprey on the menu or reviewing a completed flight.
+          aircraftSelect.disabled =
+            ["spaceLaunch", "takeoff", "flying", "landing", "lampreyDive", "lampreyAscend", "lampreySurface", "lampreyLaunch"].includes(state)
+            && !mobileMenuOpen;
           refreshPaints();
           refreshLampreySkin();
         }
@@ -1245,7 +1260,7 @@
         function newFlight() {
           if (inLamprey()) {
             // Flight phase pilots the propeller drone; underwater phase uses Lamprey.
-            plane = {id:"lampreyUAV",name:"Lamprey UAV",speed:4.65,lift:-5.9,gravity:0.265,w:94,h:29,score:5};
+            plane = {id:"lampreyUAV",name:"Lamprey MMAUV",speed:4.65,lift:-5.9,gravity:0.265,w:94,h:29,score:5};
             paint = LAMPREY_UAV_PAINTS[Number(paintSelect.value)] || LAMPREY_UAV_PAINTS[0];
           } else if (worldSelect.value === "space") {
             plane = PLANES.find((p) => p.id === "shuttle");
@@ -1329,7 +1344,7 @@
         function finish(success, reason = "") {
           if (!["spaceLaunch", "flying", "landing", "takeoff"].includes(state)) return;
           state = success ? "landed" : "crashed";
-          aircraftSelect.disabled = inLamprey();
+          aircraftSelect.disabled = false;
           paintSelect.disabled = false;
           startButton.textContent = "FLY AGAIN";
           updateWorldControlState();
@@ -1444,7 +1459,7 @@
             plane = PLANES.find((p) => p.id === "shuttle");
             paint = SHUTTLE_PAINTS[0];
           } else if (inLamprey()) {
-            plane = {id:"lampreyUAV",name:"Lamprey UAV",speed:4.65,lift:-5.9,gravity:0.265,w:94,h:29,score:5};
+            plane = {id:"lampreyUAV",name:"Lamprey MMAUV",speed:4.65,lift:-5.9,gravity:0.265,w:94,h:29,score:5};
             paint = LAMPREY_UAV_PAINTS[Number(paintSelect.value)] || LAMPREY_UAV_PAINTS[0];
             lampreyMode = "air";
           } else {
