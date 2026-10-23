@@ -784,7 +784,7 @@
           {
             id: "c130",
             name: "C-130",
-            speed: 3.15,
+            speed: 3.55,
             lift: -5.65,
             gravity: 0.28,
             w: 120,
@@ -794,7 +794,7 @@
           {
             id: "f35",
             name: "F-35",
-            speed: 4.0,
+            speed: 4.95,
             lift: -6.1,
             gravity: 0.25,
             w: 76,
@@ -804,7 +804,7 @@
           {
             id: "c5",
             name: "C-5",
-            speed: 2.7,
+            speed: 4.45,
             lift: -5.1,
             gravity: 0.27,
             w: 190,
@@ -824,7 +824,7 @@
           {
             id: "f16",
             name: "F-16",
-            speed: 5.15,
+            speed: 5.75,
             lift: -6.2,
             gravity: 0.265,
             w: 87,
@@ -834,7 +834,7 @@
           {
             id: "f22",
             name: "F-22",
-            speed: 6.0,
+            speed: 6.45,
             lift: -6.3,
             gravity: 0.275,
             w: 81,
@@ -855,7 +855,7 @@
           {
             id: "sr71",
             name: "SR-71",
-            speed: 7.6,
+            speed: 7.85,
             lift: -6.7,
             gravity: 0.4,
             w: 112,
@@ -5000,6 +5000,7 @@
             paint,
             preview ? 0 : player.pitch || 0,
           );
+          drawTouchdownSmoke();
           // Compact HUD in the upper-right so it stays clear of the player's aircraft.
           const hudX = W - 226;
           rect(hudX, 12, 214, 42, "#24354a");
@@ -5053,6 +5054,40 @@
             label("SELECT IT FROM THE AIRCRAFT MENU",480,351,13,"#d9d0c0","center");
           }
         }
+        // Small, visible tire puffs on main-gear runway contact, excluding Black Hawk.
+        // They follow the runway (not the rotating fuselage), then dissipate aft.
+        function drawTouchdownSmoke() {
+          if (plane.id === "blackhawk" || state !== "landing") return;
+          const t = landingFrames;
+          if (t < 2 || t > 74) return;
+          const surface = getWorldConfig().id === "space" ? 461 : GROUND - 5;
+          const mainX = plane.id === "c5" ? -plane.w * 0.23
+            : plane.id === "c130" ? -plane.w * 0.075
+            : plane.id === "electra" ? plane.w * 0.18
+            : plane.id === "shuttle" ? -plane.w * 0.21
+            : plane.id === "f16" ? -plane.w * 0.14
+            : -plane.w * 0.20;
+          ctx.save();
+          // Contact kick, then the dissipating smoke trail from the main tires.
+          for (const start of [2, 9, 17]) {
+            const age = t - start;
+            if (age < 0 || age > 48) continue;
+            const fade = Math.pow(1 - age / 49, 1.35);
+            for (let i = 0; i < 6; i++) {
+              const drift = age * (0.64 + i * 0.14);
+              const px = PLANE_X + mainX - drift + (i - 2) * 2.5;
+              const py = surface - 4 - age * (0.21 + i * 0.038) - (i % 3) * 2.1;
+              const radius = 2.5 + age * 0.15 + (i % 3) * 0.48;
+              ctx.globalAlpha = Math.max(0, fade * (0.72 - i * 0.045));
+              ctx.fillStyle = i % 3 === 0 ? "#f9faf6" : i % 3 === 1 ? "#d8dee0" : "#b5c0c4";
+              ctx.beginPath();
+              ctx.arc(px, py, radius, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+          ctx.restore();
+        }
+
         function frame(now) {
           if (!lastTime) lastTime = now;
           accumulator = Math.min(
