@@ -1639,7 +1639,23 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         );
         worldSelect.addEventListener("change", () => {
           const world = getWorldConfig();
-          if ((state === "spaceLaunch" || state === "takeoff" || state === "flying" || state === "landing") && !mobileMenuOpen) return;
+          // Changing worlds must never retain landmarks and hazards from the
+          // previous map (e.g., Marietta's Big Chicken in the FTW world).
+          // When switching mid-flight, start a fresh flight in the new world.
+          if (["spaceLaunch", "takeoff", "flying", "landing"].includes(state)) {
+            newFlight();
+            return;
+          }
+          groundObstacles = makeGroundObstacles();
+          worldLandmark = makeWorldLandmark();
+          airObstacles = makeAirObstacles();
+          camera = 0;
+          passed = 0;
+          airPassed = 0;
+          ringsCleared = 0;
+          ringsFailed = false;
+          helicopterTick = 0;
+          if (state === "crashed" || state === "landed") state = "menu";
           refreshLampreyAircraft();
           syncVintageMode();
           if (world.id === "space") {
@@ -3983,6 +3999,8 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           ctx.save();
           ctx.translate(Math.round(sx), Math.round(a.y));
           ctx.scale(a.width / 64, a.height / 40);
+          // Traffic outside the final approach faces its actual travel direction.
+          if (!a.approachCessna && a.facing === -1) ctx.scale(-1, 1);
           if (a.type === "blimp") {
             // Detailed ATLANTA sprite uses the existing blimp object dimensions.
             // No branded emblem and no changes to its physics or collision box.
@@ -4106,23 +4124,38 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             rect(37,-blur,2,2*blur,"#4b5155");
             ctx.restore();
           } else {
-            const color = a.color === 0 ? "#f2f1e9" : "#cc4a42";
-            // Smaller 2-person helicopter: longer tail boom left, bubble cabin right.
-            rect(-34,-2,17,4,color);
-            polygon([[-35,-4],[-31,-7],[-26,-6],[-21,-3],[-21,1],[-27,2],[-34,2]],color);
-            rect(-31,-4-7*Math.abs(Math.cos(performance.now()*0.067)),2,14*Math.abs(Math.cos(performance.now()*0.067)),"#171d25");
-            polygon([
-              [-18,-3],[-8,-8],[7,-9],[18,-5],[23,1],[19,7],[5,10],[-8,9],[-17,4]
-            ], color);
-            polygon([[1,-7],[13,-6],[18,-1],[14,5],[1,5]],"#45606d");
-            rect(-12,-2,3,11,a.color===0?"#b8c0bd":"#8f3431");
-            rect(-2,-17,3,9,"#171d25");
-            // Animated main rotor and black skids.
-            const rotorSpin=Math.abs(Math.sin(performance.now()*0.052));
-            rect(-24*rotorSpin,-20,48*rotorSpin,3,"#171d25");
-            rect(-10,12,2,5,"#171d25");
-            rect(12,12,2,5,"#171d25");
-            rect(-16,17,35,3,"#171d25");
+            // Detailed, compact civilian helicopter in the existing aircraft art style.
+            const body = a.color === 0 ? "#e6e9e5" : "#ba403c";
+            const highlight = a.color === 0 ? "#ffffff" : "#ee7166";
+            const shadow = a.color === 0 ? "#9ba9ac" : "#762e32";
+            const rotor = "#253440";
+            // Tail boom, fin and visible tail rotor.
+            polygon([[-16,-3],[-39,-5],[-43,-1],[-18,5]],shadow);
+            polygon([[-37,-6],[-40,-15],[-35,-15],[-31,-3]],body);
+            rect(-41,-12,2,18,rotor);
+            const tailBlur = 3 + Math.abs(Math.sin(performance.now()*0.08))*8;
+            rect(-43,-4-tailBlur/2,2,tailBlur,"#7c929e");
+            // Fuselage with a rounded nose, belly and upper highlight.
+            polygon([[-22,-5],[-13,-12],[7,-13],[18,-9],[27,-2],
+                     [29,5],[20,11],[-9,12],[-19,7]],shadow);
+            polygon([[-21,-7],[-11,-13],[7,-13],[18,-9],[27,-2],
+                     [25,4],[18,8],[-10,8],[-20,3]],body);
+            polygon([[-15,-9],[-8,-12],[7,-12],[13,-9],[-7,-7]],highlight);
+            // Front wraparound windshield and a distinct cabin side window.
+            polygon([[8,-10],[18,-8],[25,-2],[25,2],[12,2],[8,-2]],"#527f96");
+            polygon([[-5,-9],[5,-10],[6,2],[-7,2],[-10,-2]],"#38596c");
+            rect(8,-5,2,9,"#dcecf0");
+            rect(-17,2,36,2,highlight);
+            rect(-5,-5,2,12,shadow);
+            // Rotor mast, spinning blade and landing skids.
+            rect(-2,-19,4,8,rotor);
+            const rotorBlur = 10 + 29*Math.abs(Math.sin(performance.now()*0.055));
+            rect(-rotorBlur,-21,rotorBlur*2,3,"#344650");
+            rect(-10,10,3,8,rotor);
+            rect(15,9,3,9,rotor);
+            rect(-20,18,47,3,rotor);
+            rect(-17,16,3,3,"#77868c");
+            rect(23,16,3,3,"#77868c");
           }
           ctx.restore();
         }
@@ -4314,6 +4347,20 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
                }
                continue;
              }
+            // Bidirectional patrol everywhere outside the runway approach.
+            // Preserve the offshore rig takeoff path and all approach-ring traffic.
+            if ((a.type === "lightplane" || a.type === "helicopter" ||
+                 a.type === "gulfheli") && !a.approachCessna && !a.noCollision) {
+              if (a.patrolX === undefined) {
+                a.patrolX = a.x;
+                a.trafficPhase = (Math.round(a.x) % 7) * 0.73;
+              }
+              const speed = a.type === "lightplane" ? 0.012 : 0.009;
+              const range = a.type === "lightplane" ? 37 : 23;
+              const phase = helicopterTick * speed + a.trafficPhase;
+              a.x = a.patrolX + range * Math.sin(phase);
+              a.facing = Math.cos(phase) < 0 ? -1 : 1;
+            }
             if (a.type === "righeli") {
               // Late-stage helicopter takeoff from a side platform attached to an offshore oil rig.
               const dx = a.x - (camera + PLANE_X);
@@ -4784,14 +4831,25 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             }
           }
           if (getWorldConfig().id !== "space") {
+            // Sweep the visible nose through each ring, rather than testing the
+            // fuselage center several frames after the nose appears to pass it.
+            // This is especially important for the long, fast SR-71.
+            // Kept for the original runway landing-trigger calculation.
             const planeCenterX = camera + PLANE_X;
-            const priorCenterX = planeCenterX - plane.speed * worldSpeedMultiplier();
-            // The ring checkpoint is the aircraft reference point, independent
-            // of aircraft hull length or sprite size.
+            const noseOffset = plane.w * 0.38;
+            const travel = plane.speed * worldSpeedMultiplier();
+            const noseX = camera + PLANE_X + noseOffset;
+            const previousNoseX = noseX - travel;
+            const previousY = player.y - player.vy;
             if (!ringsFailed && ringsCleared < APPROACH_RINGS.length) {
               const gate = APPROACH_RINGS[ringsCleared];
-              if (planeCenterX >= gate.x && priorCenterX < gate.x) {
-                if (Math.abs(player.y - gate.y) <= APPROACH_RING_RADIUS - 3) {
+              if (previousNoseX < gate.x && noseX >= gate.x) {
+                const fraction = Math.max(0, Math.min(1,
+                  (gate.x - previousNoseX) / Math.max(0.0001, travel)));
+                const crossingY = previousY + (player.y - previousY) * fraction;
+                // An allowance near the stroke accounts for the nose's visible
+                // height without relaxing the mandatory three-ring sequence.
+                if (Math.abs(crossingY - gate.y) <= APPROACH_RING_RADIUS + 3) {
                   ringsCleared++;
                   setMessage(ringsCleared === 3
                     ? "All three approach rings cleared! Preparing to land."
