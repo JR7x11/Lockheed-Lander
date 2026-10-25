@@ -4353,10 +4353,14 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
                  a.type === "gulfheli") && !a.approachCessna && !a.noCollision) {
               if (a.patrolX === undefined) {
                 a.patrolX = a.x;
-                a.trafficPhase = (Math.round(a.x) % 7) * 0.73;
+                a.trafficPhase = (Math.round(a.x) % 13) * 0.51;
               }
-              const speed = a.type === "lightplane" ? 0.012 : 0.009;
-              const range = a.type === "lightplane" ? 37 : 23;
+              // Full, visible two-way traffic rather than a tiny positional wobble.
+              // A flight is seeded at different phases so traffic is already
+              // travelling in BOTH directions when the level begins.
+              const cessna = a.type === "lightplane";
+              const range = cessna ? 165 : 105;
+              const speed = cessna ? 0.009 : 0.011;
               const phase = helicopterTick * speed + a.trafficPhase;
               a.x = a.patrolX + range * Math.sin(phase);
               a.facing = Math.cos(phase) < 0 ? -1 : 1;
