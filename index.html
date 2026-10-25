@@ -4602,11 +4602,16 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               // rear/main gear first, lower the nose, then decelerate on the strip.
               // Helicopters still settle level rather than pretending to have a nose-wheel rollout.
               const helicopterLanding = plane.id === "blackhawk";
+              const electraLanding = plane.id === "electra";
               const isLunarLanding = getWorldConfig().id === "space";
-              const touchdownPitch = helicopterLanding ? 0 : -0.10;
-              const lowerT = Math.max(0, Math.min(1, (landingFrames - 30) / 68));
+              // The Electra is a taildragger, so it should settle and remain
+              // tail-low on the runway with the rear wheel touching down.
+              const touchdownPitch = helicopterLanding ? 0 : electraLanding ? -0.075 : -0.10;
+              const lowerT = electraLanding
+                ? 0
+                : Math.max(0, Math.min(1, (landingFrames - 30) / 68));
               const eased = lowerT * lowerT * (3 - 2 * lowerT);
-              const targetPitch = touchdownPitch * (1 - eased);
+              const targetPitch = electraLanding ? touchdownPitch : touchdownPitch * (1 - eased);
               player.pitch += (targetPitch - player.pitch) * 0.15;
 
               // Main-wheel positions are local to the existing side-view sprites.
@@ -4628,6 +4633,12 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
                 rearX = -11 * gearScaleX;
                 rearY = 13.1 * gearScaleY;
               }
+              if (plane.id === "electra") {
+                // Effective contact point for the Electra's main wheel + tailwheel
+                // line when resting in its natural tail-down attitude.
+                rearX = -5.25;
+                rearY = 15.1;
+              }
               if (plane.id === "p38") { rearX = 7; rearY = 18.6; }
               if (plane.id === "shuttle") { rearX = -24 * plane.w / 112; rearY = 27 * plane.h / 48; }
               if (helicopterLanding) { rearX = 0; rearY = plane.h * 0.42; }
@@ -4638,8 +4649,13 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               const rollFraction = Math.max(0, Math.min(1, (landingFrames - 24) / 160));
               camera += plane.speed * worldSpeedMultiplier() * (0.74 - 0.60 * rollFraction);
               if (landingFrames >= 190) {
-                player.pitch = 0;
-                player.y = runwaySurface - rearY;
+                if (electraLanding) {
+                  player.pitch = touchdownPitch;
+                  player.y = runwaySurface - (Math.sin(player.pitch) * rearX + Math.cos(player.pitch) * rearY);
+                } else {
+                  player.pitch = 0;
+                  player.y = runwaySurface - rearY;
+                }
                 finish(true);
               }
             }
@@ -4663,14 +4679,16 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             player.vy = Math.min(7.3, player.vy + plane.gravity);
             if (climbHeld || spaceHeld) {
               player.vy = Math.max(-3.2, player.vy - 0.38);
-              player.pitch += (-0.18 - player.pitch) * 0.12;
             }
             player.fallFrames = player.vy > 0 ? (player.fallFrames || 0) + 1 : 0;
-            const diveDelay = 60;
-            const maxDive = (plane.id === "blackhawk" ? 11 : 23) * Math.PI / 180;
-            const diveAmount = Math.min(1, Math.max(0, (player.fallFrames - diveDelay) / 46));
-            const targetPitch = maxDive * diveAmount;
-            player.pitch += (targetPitch - (player.pitch || 0)) * 0.085;
+            // Visual-only gentle descending attitude, inspired by the Electra
+            // in the upside-down world. No delayed or steep nosedive behavior.
+            // Positive canvas rotation lowers the nose; climbing still pitches up.
+            const descendingPitchLimit = plane.id === "blackhawk" ? 0.065 : 0.105;
+            const targetPitch = (climbHeld || spaceHeld)
+              ? -0.15
+              : Math.min(descendingPitchLimit, Math.max(0, player.vy) * 0.022);
+            player.pitch += (targetPitch - (player.pitch || 0)) * 0.10;
             if (Math.abs(player.pitch - targetPitch) < 0.001) player.pitch = targetPitch;
           }
           player.y += player.vy;
