@@ -2513,6 +2513,34 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             ctx.save(); ctx.globalAlpha = 0.46;
             rect(43 - 0.8 * Math.cos(phase), -17, 2, 29, "#4b5053");
             ctx.restore();
+            // Electra uses an early-return sprite path, so its landing gear
+            // must be drawn here rather than in the shared gear block below.
+            // Taildragger: one visible main wheel and a smaller tailwheel.
+            if (state === "takeoff" || state === "landing" || state === "landed" ||
+                (state === "flying" && RUNWAY_X - camera - PLANE_X < 440)) {
+              const gearProgress = state === "takeoff"
+                ? Math.max(0, 1 - Math.max(0, takeoffFrames - 240) / 46)
+                : state === "landed" ? 1
+                : state === "landing" ? Math.min(1, 0.55 + landingFrames / 32)
+                : Math.max(0, Math.min(1, (440 - (RUNWAY_X - camera - PLANE_X)) / 260));
+              if (gearProgress > 0.02) {
+                ctx.save();
+                ctx.globalAlpha = gearProgress;
+                const wheel = (x, y, r) => {
+                  ctx.fillStyle = "#151b21";
+                  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+                  ctx.fillStyle = "#d5dadc";
+                  ctx.beginPath(); ctx.arc(x, y, r * 0.42, 0, Math.PI * 2); ctx.fill();
+                };
+                const mainDrop = 8.5 * gearProgress;
+                rect(30, 8, 2.5, mainDrop, "#767a7d");
+                wheel(31.5, 9.3 + mainDrop, 4.3);
+                const tailDrop = 4.2 * gearProgress;
+                rect(-43, 7, 1.5, tailDrop, "#767a7d");
+                wheel(-42, 8.2 + tailDrop, 1.75);
+                ctx.restore();
+              }
+            }
             ctx.restore(); return;
           }
           if (p.id === "shuttle") {
