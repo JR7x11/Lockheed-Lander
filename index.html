@@ -4352,8 +4352,12 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             if ((a.type === "lightplane" || a.type === "helicopter" ||
                  a.type === "gulfheli") && !a.approachCessna && !a.noCollision) {
               if (a.patrolX === undefined) {
-                a.patrolX = a.x;
                 a.trafficPhase = (Math.round(a.x) % 13) * 0.51;
+                // Offset the patrol center so its first computed position is
+                // exactly its authored starting position (no spawn jump).
+                const initialSpeed = a.type === "lightplane" ? 0.009 : 0.011;
+                const initialRange = a.type === "lightplane" ? 165 : 105;
+                a.patrolX = a.x - initialRange * Math.sin(helicopterTick * initialSpeed + a.trafficPhase);
               }
               // Full, visible two-way traffic rather than a tiny positional wobble.
               // A flight is seeded at different phases so traffic is already
@@ -4400,7 +4404,12 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             const downLimit = Math.max(19 + half, Math.min(floor, a.baseY + (beneath ? 130 : 24)));
             const upper = Math.max(19 + half, a.baseY - 12);
             const travel = Math.max(0,downLimit-upper);
-            a.y = upper + (travel * (0.5 - 0.5*Math.cos(helicopterTick*0.025 + a.x*0.001)));
+            // Follow the vertical patrol continuously.  The safe lower endpoint
+            // changes when a helicopter crosses a roof; snapping directly to
+            // that newly calculated endpoint made it appear to teleport.
+            const targetY = upper + (travel * (0.5 - 0.5*Math.cos(helicopterTick*0.025 + a.x*0.001)));
+            const verticalStep = Math.max(-2.5, Math.min(2.5, (targetY - a.y) * 0.10));
+            a.y += verticalStep;
           }
         }
         function update() {
