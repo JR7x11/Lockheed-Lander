@@ -696,6 +696,14 @@
             stripe: "#394650",
           },
         ];
+        // P-38 paints share the current authentic side-profile sprite.
+        const P38_PAINTS = [
+          {name:"Olive Drab",body:"#64714d",accent:"#3c4b38",glass:"#465d6b"},
+          {name:"Bare Metal",body:"#b7c1c6",accent:"#697b86",glass:"#4e718a"},
+          {name:"Pacific Blue",body:"#466580",accent:"#263f56",glass:"#92b3c5"},
+          {name:"Desert Lightning",body:"#c6a77d",accent:"#8e745b",glass:"#597483"},
+          {name:"Night Fighter",body:"#353c45",accent:"#1c2835",glass:"#7897ac"},
+        ];
         const BLACKHAWK_PAINTS = [
           {
             name: "Olive Green",
@@ -763,7 +771,8 @@
           { name:"Arcade Ace", body:"#e2a3d0", accent:"#765fbd", glass:"#483b75" },
         ];
         const paintsFor = (id) =>
-          id === "modelg" ? MODEL_G_PAINTS
+          id === "p38" ? P38_PAINTS
+            : id === "modelg" ? MODEL_G_PAINTS
             : id === "lampreyUAV"
             ? LAMPREY_UAV_PAINTS
             : id === "c130"
@@ -943,8 +952,7 @@
         function syncVintageMode() {
           document.body.classList.toggle("model-g-film", aircraftSelect.value === "modelg" && !inLamprey() && worldSelect.value !== "space");
         }
-        const isSR71Unlocked = () =>
-          ORIGINAL_IDS.every((id) => Number(unlocked[id]) >= 2);
+        const isSR71Unlocked = () => true; // TEST BUILD ONLY: unlock SR-71 preview
         // Secret World 4 unlock: every paint job for every normal aircraft.
         const SPACE_UNLOCK_IDS = [
           "c130",
@@ -2344,7 +2352,7 @@
             // Authentic 90-degree side-view art; one visible propeller.
             if (p38Sprite.complete && p38Sprite.naturalWidth) {
               ctx.imageSmoothingEnabled = false;
-              ctx.drawImage(p38Sprite, -59, -19, 118, 38);
+              ctx.drawImage(paintedAircraftSprite(p38Sprite, "p38", scheme), -59, -19, 118, 38);
             }
             // Add in-game animation overlays without changing the approved side-view sprite:
             // 1) one visible spinning propeller on the near engine/nose area
@@ -4336,6 +4344,44 @@
           }
           if (state === "landing") {
             landingFrames++;
+            if (plane.id === "blackhawk") {
+              // Distinct helicopter arrival: visibly flare while still advancing,
+              // level into a hover, then begin vertical descent. No rollout.
+              const surface = GROUND - 5;
+              const contactY = surface - plane.h * 0.42;
+              const hoverY = contactY - 62;
+              const clamp01 = (v) => Math.max(0, Math.min(1, v));
+              const ease = (v) => { const t = clamp01(v); return t*t*(3-2*t); };
+              const f = landingFrames;
+              if (f <= 80) {
+                // Keep forward motion visible throughout the nose-up braking phase.
+                const decel = ease(f / 80);
+                camera += plane.speed * worldSpeedMultiplier() * (1 - .94*decel) * .78;
+                player.y += (hoverY - player.y) * .055;
+                // A clear 27-degree flare, rather than the barely-visible 11 degrees.
+                player.pitch = -0.47 * ease(f / 18);
+              } else if (f <= 115) {
+                // Finish braking and rotate back to level before descent starts.
+                camera += plane.speed * worldSpeedMultiplier() * .025;
+                player.y += (hoverY - player.y) * .12;
+                player.pitch = -0.47 * (1-ease((f-80)/35));
+              } else if (f <= 200) {
+                // Vertical descent is a separate phase: helicopter remains level.
+                const descentY = hoverY + (contactY-hoverY)*ease((f-115)/85);
+                player.y += (descentY-player.y) * .27;
+                player.pitch = 0;
+              } else {
+                player.y += (contactY-player.y)*.3;
+                player.pitch = 0;
+              }
+              player.vy = 0;
+              if (f >= 220) {
+                player.y = contactY;
+                player.pitch = 0;
+                finish(true);
+              }
+              return;
+            }
             const transportLanding = plane.id === "c130" || plane.id === "c5";
             if (transportLanding) {
               // Main gear first (nose high), then lower the nose to the runway,
@@ -4640,16 +4686,22 @@
           }
           if (RUNWAY_X - camera <= PLANE_X) {
             if (
-              player.y >= (getWorldConfig().id === "space" ? 350 : 300) &&
-              player.y <= (getWorldConfig().id === "space" ? 455 : 390) &&
-              Math.abs(player.vy) <= 4.6
+              (plane.id === "blackhawk"
+                ? (player.y >= (getWorldConfig().id === "space" ? 290 : 245) &&
+                   player.y <= (getWorldConfig().id === "space" ? 460 : 435) &&
+                   Math.abs(player.vy) <= 8.0)
+                : (player.y >= (getWorldConfig().id === "space" ? 350 : 300) &&
+                   player.y <= (getWorldConfig().id === "space" ? 455 : 390) &&
+                   Math.abs(player.vy) <= 4.6))
             ) {
               state = "landing";
               setMessage("Good approach! Landing...");
             } else
               finish(
                 false,
-                "Missed the safe approach. Aim for the gold guide with a gentle descent.",
+                plane.id === "blackhawk"
+                  ? "Missed helicopter landing zone. Approach at mid-low altitude, then let the automatic hover landing begin."
+                  : "Missed the safe approach. Aim for the gold guide with a gentle descent.",
               );
           }
         }
@@ -5140,10 +5192,12 @@
             accumulator + Math.min(100, now - lastTime),
           );
           lastTime = now;
-          while (accumulator >= 1000 / 60) {
+          let steps = 0;
+          while (accumulator >= 1000 / 60 && steps++ < 5) {
             update();
             accumulator -= 1000 / 60;
           }
+          if (steps >= 5) accumulator = 0;
           draw();
           requestAnimationFrame(frame);
         }
@@ -5177,15 +5231,11 @@
         requestAnimationFrame(frame);
       })();
     </script>
-    <!-- Cloudflare Web Analytics -->
-    <script
-      type="module"
-      src="https://static.cloudflareinsights.com/beacon.min.js"
-      data-cf-beacon='{"token": "8a7301d7fd4a43ccb06f16cacce47603"}'
-    ></script>
+    <!-- Cloudflare Web Analytics (disabled in local test build) -->
+
     <!-- End Cloudflare Web Analytics -->
     <script>
-      if ('serviceWorker' in navigator) {
+      if (location.protocol !== 'file:' && 'serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('./sw.js').catch(err => {
             console.warn('Offline mode unavailable:', err);
