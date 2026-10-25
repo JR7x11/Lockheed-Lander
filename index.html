@@ -339,8 +339,8 @@
 #flightHeader button{width:100%;height:100%;min-height:52px;font-size:14px}
 #hudCenter{border:2px solid #a9c7d4;background:#243b54;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:6px 13px;min-width:0;text-align:center}
 #hudPlane{color:#ffdf94;font-size:13px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#hudTrack{height:8px;background:#0b1929;border:1px solid #607a89;overflow:hidden}
-#hudFill{height:100%;width:0%;background:#e8c65e;transition:width .12s linear}
+#hudTrack{height:8px;width:100%;min-width:0;flex:none;background:#0b1929;border:1px solid #607a89;overflow:hidden;position:relative}
+#hudFill{display:block;height:100%;width:100%;background:#e8c65e;transform:scaleX(0);transform-origin:left center;will-change:transform}
 #flightMenuButton{background:#243b54;font-size:24px!important;color:#ffdf94}
 #flightAction{background:#bd673d}
 .toolbar{display:none!important}
@@ -386,7 +386,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
       </p>
 
       <div class="panel">
-        <div id="flightHeader" aria-label="Flight controls"><button id="flightMenuButton" aria-label="Open aircraft and world settings" aria-expanded="false">☰</button><div id="hudCenter"><div id="hudPlane">C-130</div><div id="hudTrack"><div id="hudFill"></div></div></div><button id="flightAction">FLY</button></div>
+        <div id="flightHeader" aria-label="Flight controls"><button id="flightMenuButton" aria-label="Open aircraft and world settings" aria-expanded="false">☰</button><div id="hudCenter"><div id="hudPlane">C-130</div><div id="hudTrack" role="progressbar" aria-label="Flight progress" aria-valuemin="0" aria-valuemax="100"><div id="hudFill"></div></div></div><button id="flightAction">FLY</button></div>
         <div class="toolbar">
           <label
             >World<select id="world">
@@ -1329,6 +1329,26 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               height: world.id === "darb" && slot === 6 ? 34 : type === "lightplane" ? 32 : 28,
             };
           });
+          // Three small Cessnas patrol the high corridor BEFORE the first approach ring.
+          // Low-altitude approach remains completely open; reuse existing Cessna art.
+          for (const [offset, altitude, scheme, phase] of [
+            [1850, 88, 0, 0],
+            [1640, 135, 1, 1.9],
+            [1430, 103, 0, 3.8],
+          ]) {
+            aircraft.push({
+              x: RUNWAY_X - offset,
+              baseX: RUNWAY_X - offset,
+              y: altitude,
+              baseY: altitude,
+              type: "lightplane",
+              color: scheme,
+              width: 60,
+              height: 28,
+              approachCessna: true,
+              patrolPhase: phase,
+            });
+          }
           if (world.id === "night") {
             aircraft.push({
               x: START_X + 520 - 59,
@@ -1501,7 +1521,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             isSpaceWorld
               ? "External tank separation in progress..."
               : inLamprey() ? "Lamprey diving! Tap or click to rise. All marine scenery is decorative."
-              : `${plane.name} taking off! Click or tap to climb. Landing gear retracts after liftoff.`,
+              : `${plane.name} cleared for take off! Click or tap to climb. Landing gear retracts after liftoff.`,
           );
         }
         function finish(success, reason = "") {
@@ -4274,6 +4294,26 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           helicopterTick++;
           if (getWorldConfig().id === "space") return;
           for (const a of airObstacles) {
+            if (a.approachCessna) {
+               const heavyTransport = plane.id === "c130" || plane.id === "c5";
+               if (a.approachSwap && !heavyTransport) {
+                 // A standard small helicopter, not the oversized earlier test.
+                 // Its patrol stays above the approach-ring corridor.
+                 a.type = "helicopter";
+                 a.width = 48;
+                 a.height = 30;
+                 a.x = a.baseX;
+                 a.y = a.baseY + 66 * Math.sin(helicopterTick * 0.018 + a.patrolPhase);
+               } else {
+                 // Keep all three Cessnas for the C-130 and C-5.
+                 a.type = "lightplane";
+                 a.width = 60;
+                 a.height = 28;
+                 a.x = a.baseX + 24 * Math.sin(helicopterTick * 0.009 + a.patrolPhase);
+                 a.y = a.baseY + 6 * Math.sin(helicopterTick * 0.015 + a.patrolPhase);
+               }
+               continue;
+             }
             if (a.type === "righeli") {
               // Late-stage helicopter takeoff from a side platform attached to an offshore oil rig.
               const dx = a.x - (camera + PLANE_X);
@@ -4397,7 +4437,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               state = "flying";
               player.vy = -2.0;
               player.pitch = -0.15;
-              setMessage("Airborne! Hold to climb; release to descend. Landing gear retracted.");
+              setMessage("Wheels up! Hold to climb; release to descend. Landing gear retracted.");
             }
             return;
           }
@@ -5263,6 +5303,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           }
           if (steps >= 5) accumulator = 0;
           draw();
+          updateTopHUD();
           requestAnimationFrame(frame);
         }
         function resetWorldSelectionMessage() {
@@ -5311,19 +5352,21 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           const activeId = inLamprey() ? "lampreyUAV" : (getWorldConfig().id === "space" ? "shuttle" : aircraftSelect.value);
           const activePlane = activeId === "shuttle" ? "SPACE SHUTTLE" : (PLANES.find(p => p.id === activeId)?.name || (activeId === "lampreyUAV" ? "LAMPREY MMAUV" : aircraftSelect.selectedOptions[0]?.textContent || "AIRCRAFT"));
           hudPlane.textContent = activePlane.toUpperCase();
-          const progress = Math.max(0, Math.min(100, (camera / Math.max(1,RUNWAY_X)) * 100));
-          hudFill.style.width = progress.toFixed(2) + "%";
+          // Track the aircraft's actual traveled distance along the level, not
+          // DOM layout or a second animation timer. The landing zone is the goal.
+          const finishX = LANDING_RUNWAY_START;
+          const traveled = Math.max(0, camera + PLANE_X);
+          const progress = Math.max(0, Math.min(1, (traveled - PLANE_X) / Math.max(1, finishX - PLANE_X)));
+          hudFill.style.transform = `scaleX(${progress.toFixed(5)})`;
+          hudFill.parentElement.setAttribute("aria-valuenow", String(Math.round(progress * 100)));
           const running = ["takeoff","spaceLaunch","flying","landing","upsideDown","upsideAscend","lampreyDive","lampreyAscend","lampreySurface","lampreyLaunch"].includes(state);
           flightAction.textContent = running || state === "crashed" || state === "landed" ? "RESTART" : "FLY";
           headerMenu.setAttribute("aria-expanded", String(mobileMenuOpen));
         }
         aircraftSelect.addEventListener("change", updateTopHUD);
         worldSelect.addEventListener("change", updateTopHUD);
-        const originalFrame = frame;
-        // The game frame continues unmodified; update only the surrounding HUD.
-        function hudTick(){updateTopHUD();requestAnimationFrame(hudTick);}
+        // Update the HUD once per game frame, including takeoff and landing.
         updateTopHUD();
-        requestAnimationFrame(hudTick);
         requestAnimationFrame(frame);
       })();
     </script>
