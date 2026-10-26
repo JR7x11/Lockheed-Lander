@@ -952,7 +952,12 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         function syncVintageMode() {
           document.body.classList.toggle("model-g-film", aircraftSelect.value === "modelg" && !inLamprey() && worldSelect.value !== "space");
         }
-        const isSR71Unlocked = () => true; // TEST BUILD ONLY: unlock SR-71 preview
+        // SR-71 achievement: successfully land each of the six original aircraft.
+        // A successful landing advances its stored paint count from 1 to at least 2.
+        // This reuses existing browser progress so previously earned unlocks persist.
+        const isSR71Unlocked = () => ORIGINAL_IDS.every(
+          (id) => Number(unlocked[id] || 0) >= 2
+        );
         // Secret World 4 unlock: every paint job for every normal aircraft.
         const SPACE_UNLOCK_IDS = [
           "c130",
