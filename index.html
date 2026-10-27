@@ -344,6 +344,7 @@
 #hudFill{display:block;height:100%;width:100%;background:#e8c65e;transform:scaleX(0);transform-origin:left center;will-change:transform}
 #flightMenuButton{background:#243b54;font-size:24px!important;color:#ffdf94}
 #flightAction{background:#bd673d}
+@media (pointer:coarse){#flightMenuButton,#flightAction{touch-action:manipulation;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}}
 .toolbar{display:none!important}
 body.landscape-menu-open .toolbar{display:flex!important;position:fixed!important;top:50%!important;left:50%!important;right:auto!important;transform:translate(-50%,-50%)!important;width:min(92vw,550px)!important;max-height:85dvh!important;overflow-y:auto!important;flex-wrap:wrap!important;align-items:stretch!important;gap:12px!important;background:#15243b!important;border:4px solid #8fa5b3!important;box-shadow:7px 7px #080f1c!important;padding:18px!important;z-index:91!important;margin:0!important}
 body.landscape-menu-open .toolbar label{flex:1 1 190px!important;font-size:13px!important}
@@ -5380,31 +5381,67 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         const flightAction = document.getElementById("flightAction");
         const hudPlane = document.getElementById("hudPlane");
         const hudFill = document.getElementById("hudFill");
-        headerMenu.addEventListener("click", () => {
+        // Use pointerdown only on touch-first devices; preserve desktop click handling.
+        function bindTouchImmediate(button, action) {
+          let lastHandledPointer = -Infinity;
+          button.addEventListener("pointerdown", e => {
+            if (!window.matchMedia("(pointer: coarse)").matches || !e.isPrimary) return;
+            lastHandledPointer = performance.now();
+            e.preventDefault();
+            e.stopPropagation();
+            action();
+          });
+          button.addEventListener("click", e => {
+            if (performance.now() - lastHandledPointer < 650) {
+              lastHandledPointer = -Infinity;
+              e.preventDefault();
+              e.stopImmediatePropagation();
+              return;
+            }
+            action();
+          });
+          button.addEventListener("pointercancel", () => { lastHandledPointer = -Infinity; });
+        }
+        bindTouchImmediate(headerMenu, () => {
           openLandscapeMenu();
           headerMenu.setAttribute("aria-expanded", "true");
         });
         const legacyClose = closeLandscapeMenu;
         mobileMenuClose.addEventListener("click", () => headerMenu.setAttribute("aria-expanded", "false"));
         mobileMenuBackdrop.addEventListener("click", () => headerMenu.setAttribute("aria-expanded", "false"));
-        flightAction.addEventListener("click", () => startButton.click());
-        function updateTopHUD() {
+        bindTouchImmediate(flightAction, () => startButton.click());
+        let lastMobileHudFrame = -Infinity;
+        let lastPlaneText = null;
+        let lastActionText = null;
+        let lastProgressAria = null;
+        let lastMenuExpanded = null;
+        function updateTopHUD(force = false) {
+          const mobile = window.matchMedia("(pointer: coarse)").matches;
+          if (mobile) {
+            const now = performance.now();
+            if (!force && now - lastMobileHudFrame < 50) return;
+            lastMobileHudFrame = now;
+          }
           const activeId = inLamprey() ? "lampreyUAV" : (getWorldConfig().id === "space" ? "shuttle" : aircraftSelect.value);
           const activePlane = activeId === "shuttle" ? "SPACE SHUTTLE" : (activeId === "blackhawk" ? (paint?.name === "NSDQ" ? "MH-60M Blackhawk" : "UH-60 Blackhawk") : (PLANES.find(p => p.id === activeId)?.name || (activeId === "lampreyUAV" ? "LAMPREY MMAUV" : aircraftSelect.selectedOptions[0]?.textContent || "AIRCRAFT")));
-          hudPlane.textContent = activePlane.toUpperCase();
+          const planeText = activePlane.toUpperCase();
+          if (!mobile || planeText !== lastPlaneText) { hudPlane.textContent = planeText; lastPlaneText = planeText; }
           // Track the aircraft's actual traveled distance along the level, not
           // DOM layout or a second animation timer. The landing zone is the goal.
           const finishX = LANDING_RUNWAY_START;
           const traveled = Math.max(0, camera + PLANE_X);
           const progress = Math.max(0, Math.min(1, (traveled - PLANE_X) / Math.max(1, finishX - PLANE_X)));
           hudFill.style.transform = `scaleX(${progress.toFixed(5)})`;
-          hudFill.parentElement.setAttribute("aria-valuenow", String(Math.round(progress * 100)));
+          const progressAria = String(Math.round(progress * 100));
+          if (!mobile || progressAria !== lastProgressAria) { hudFill.parentElement.setAttribute("aria-valuenow", progressAria); lastProgressAria = progressAria; }
           const running = ["takeoff","spaceLaunch","flying","landing","upsideDown","upsideAscend","lampreyDive","lampreyAscend","lampreySurface","lampreyLaunch"].includes(state);
-          flightAction.textContent = running || state === "crashed" || state === "landed" ? "RESTART" : "FLY";
-          headerMenu.setAttribute("aria-expanded", String(mobileMenuOpen));
+          const actionText = running || state === "crashed" || state === "landed" ? "RESTART" : "FLY";
+          if (!mobile || actionText !== lastActionText) { flightAction.textContent = actionText; lastActionText = actionText; }
+          const expanded = String(mobileMenuOpen);
+          if (!mobile || expanded !== lastMenuExpanded) { headerMenu.setAttribute("aria-expanded", expanded); lastMenuExpanded = expanded; }
         }
-        aircraftSelect.addEventListener("change", updateTopHUD);
-        worldSelect.addEventListener("change", updateTopHUD);
+        aircraftSelect.addEventListener("change", () => updateTopHUD(true));
+        worldSelect.addEventListener("change", () => updateTopHUD(true));
         // Update the HUD once per game frame, including takeoff and landing.
         updateTopHUD();
         requestAnimationFrame(frame);
