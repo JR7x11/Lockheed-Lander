@@ -763,6 +763,8 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             glass: "#5b7789",
           },
         ];
+        // The Electra has one fixed historical livery; its dedicated sprite supplies the artwork.
+        const ELECTRA_PAINTS = [{ ...PAINTS[0], name: "Original" }];
         const MODEL_G_PAINTS = [{ name: "1913 Original", body: "#bd8650", accent: "#f2e1bb", glass: "#3b3028" }];
         const LAMPREY_UAV_PAINTS = [
           { name:"Standard Gray", body:"#aab9c5", accent:"#566b7c", glass:"#334956" },
@@ -772,7 +774,8 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           { name:"Arcade Ace", body:"#e2a3d0", accent:"#765fbd", glass:"#483b75" },
         ];
         const paintsFor = (id) =>
-          id === "p38" ? P38_PAINTS
+          id === "electra" ? ELECTRA_PAINTS
+            : id === "p38" ? P38_PAINTS
             : id === "modelg" ? MODEL_G_PAINTS
             : id === "lampreyUAV"
             ? LAMPREY_UAV_PAINTS
@@ -1372,6 +1375,8 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           return aircraft;
         }
         function refreshPaints() {
+          // Electra has no selectable paint schemes; preserve the menu for other aircraft.
+          paintSelect.closest("label").style.display = (!inLamprey() && getWorldConfig().id !== "space" && aircraftSelect.value === "electra") ? "none" : "";
           const paintId = inLamprey() ? "lampreyUAV" : getWorldConfig().id === "space" ? "shuttle" : aircraftSelect.value;
           const schemes = paintsFor(paintId);
           const count = Math.max(
