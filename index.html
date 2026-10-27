@@ -344,7 +344,6 @@
 #hudFill{display:block;height:100%;width:100%;background:#e8c65e;transform:scaleX(0);transform-origin:left center;will-change:transform}
 #flightMenuButton{background:#243b54;font-size:24px!important;color:#ffdf94}
 #flightAction{background:#bd673d}
-@media (pointer:coarse){#flightMenuButton,#flightAction{touch-action:manipulation;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}}
 .toolbar{display:none!important}
 body.landscape-menu-open .toolbar{display:flex!important;position:fixed!important;top:50%!important;left:50%!important;right:auto!important;transform:translate(-50%,-50%)!important;width:min(92vw,550px)!important;max-height:85dvh!important;overflow-y:auto!important;flex-wrap:wrap!important;align-items:stretch!important;gap:12px!important;background:#15243b!important;border:4px solid #8fa5b3!important;box-shadow:7px 7px #080f1c!important;padding:18px!important;z-index:91!important;margin:0!important}
 body.landscape-menu-open .toolbar label{flex:1 1 190px!important;font-size:13px!important}
@@ -741,19 +740,20 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           { name: "NSDQ", body: "#111417", accent: "#1c2228", glass: "#303b44" },
         ];
         const blackhawkIsNSDQ = () => plane.id === "blackhawk" && paint?.name === "NSDQ";
-        const selectedPlaneName = () => blackhawkIsNSDQ() ? "MH-60M Blackhawk" : plane.name;
+        const selectedPlaneName = () => blackhawkIsNSDQ() ? "MH-60M Blackhawk" : plane.id === "shuttle" ? `Space Shuttle ${paint?.name || "Discovery"}` : plane.name;
         const updateBlackhawkOptionName = () => {
           const option = aircraftSelect.querySelector('option[value="blackhawk"]');
           if (option) option.textContent = blackhawkIsNSDQ() ? "MH-60M Blackhawk" : "UH-60 Blackhawk";
         };
-        const SHUTTLE_PAINTS = [
-          {
-            name: "Orbiter White",
-            body: "#f1f1ea",
-            accent: "#222a31",
-            glass: "#273e58",
-          },
-        ];
+        const shuttleOrbiterSprite = new Image();
+        shuttleOrbiterSprite.src = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20112%2048%22%20width%3D%22448%22%20height%3D%22192%22%20shape-rendering%3D%22crispEdges%22%3E%0A%20%20%3C%21--%20flat-shaded%20side-view%20orbiter%20sprite%20to%20match%20the%20game%27s%20aircraft%20style%20--%3E%0A%20%20%3C%21--%20wing%20underside%20--%3E%0A%20%20%3Cpath%20d%3D%22M28%2026%20L16%2038%20L31%2038%20L58%2031%20L69%2027%20L52%2025%20Z%22%20fill%3D%22%23242b31%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M20%2035%20L31%2035%20L57%2029%20L65%2027%20L58%2031%20L31%2038%20L16%2038%20Z%22%20fill%3D%22%2311161b%22%2F%3E%0A%20%20%3C%21--%20main%20fuselage%20--%3E%0A%20%20%3Cpath%20d%3D%22M12%2020%20L18%2016%20L42%2015%20L66%2015%20L79%2016%20L89%2018%20L96%2021%20L103%2025%20L105%2028%20L103%2030%20L97%2033%20L85%2035%20L57%2036%20L28%2036%20L16%2034%20L11%2029%20Z%22%20fill%3D%22%23f1f1ec%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M12%2029%20L23%2031%20L51%2032%20L84%2031%20L101%2029%20L103%2032%20L99%2034%20L84%2036%20L55%2037%20L27%2037%20L15%2035%20L11%2031%20Z%22%20fill%3D%22%23171c22%22%2F%3E%0A%20%20%3C%21--%20upper%20payload-bay%20strip%20--%3E%0A%20%20%3Cpath%20d%3D%22M22%2016%20L42%2016%20L66%2016%20L79%2017%20L79%2020%20L21%2020%20Z%22%20fill%3D%22%23d8dcdc%22%2F%3E%0A%20%20%3C%21--%20sharp%20black%20nose%20cap%20--%3E%0A%20%20%3Cpath%20d%3D%22M91%2018%20L98%2020%20L105%2025%20L105%2029%20L102%2032%20L95%2033%20L91%2029%20L89%2024%20Z%22%20fill%3D%22%230b1016%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M86%2019%20L92%2018%20L90%2024%20L84%2024%20Z%22%20fill%3D%22%232a3138%22%2F%3E%0A%20%20%3C%21--%20wing%20top%20%2F%20body%20fairing%20--%3E%0A%20%20%3Cpath%20d%3D%22M26%2025%20L17%2037%20L30%2037%20L54%2030%20L61%2027%20L53%2025%20Z%22%20fill%3D%22%23d7dbdc%22%2F%3E%0A%20%20%3C%21--%20tall%20shuttle%20tail%20--%3E%0A%20%20%3Cpath%20d%3D%22M25%2025%20L14%203%20L19%203%20L39%2024%20Z%22%20fill%3D%22%23edf0ef%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M17%204%20L19%204%20L33%2021%20L28%2021%20Z%22%20fill%3D%22%23252c32%22%2F%3E%0A%20%20%3C%21--%20engine%20pod%20area%20--%3E%0A%20%20%3Cpath%20d%3D%22M12%2020%20L8%2023%20L8%2029%20L14%2030%20L20%2028%20L20%2021%20Z%22%20fill%3D%22%23dadedf%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M8%2025%20L14%2024%20L17%2028%20L8%2029%20Z%22%20fill%3D%22%231a2026%22%2F%3E%0A%20%20%3C%21--%20rear%20engine%20bells%3A%20black%20with%20dark-gray%20highlights%20only%20--%3E%0A%20%20%3Cpath%20d%3D%22M7%2021%20L2%2020%20L1%2023%20L6%2024%20Z%22%20fill%3D%22%23090d12%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M7%2025%20L1%2025%20L1%2029%20L7%2029%20Z%22%20fill%3D%22%23090d12%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M7%2030%20L2%2031%20L1%2035%20L6%2034%20Z%22%20fill%3D%22%23090d12%22%2F%3E%0A%20%20%3C%21--%20dark%20gray%20rectangular%20highlights%20%2F%20inner%20detail%20--%3E%0A%20%20%3Crect%20x%3D%222%22%20y%3D%2220%22%20width%3D%223%22%20height%3D%221%22%20fill%3D%22%23353c44%22%2F%3E%0A%20%20%3Crect%20x%3D%221%22%20y%3D%2226%22%20width%3D%224%22%20height%3D%221%22%20fill%3D%22%23353c44%22%2F%3E%0A%20%20%3Crect%20x%3D%222%22%20y%3D%2232%22%20width%3D%223%22%20height%3D%221%22%20fill%3D%22%23353c44%22%2F%3E%0A%20%20%3Crect%20x%3D%224%22%20y%3D%2222%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%232a3138%22%2F%3E%0A%20%20%3Crect%20x%3D%224%22%20y%3D%2227%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%232a3138%22%2F%3E%0A%20%20%3Crect%20x%3D%224%22%20y%3D%2233%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%232a3138%22%2F%3E%0A%20%20%3C%21--%20cockpit%20--%3E%0A%20%20%3Cpath%20d%3D%22M80%2016%20L86%2016%20L91%2018%20L95%2021%20L91%2022%20L86%2021%20L81%2020%20Z%22%20fill%3D%22%23202a31%22%2F%3E%0A%20%20%3Crect%20x%3D%2281%22%20y%3D%2217%22%20width%3D%224%22%20height%3D%222%22%20fill%3D%22%2366a9d8%22%2F%3E%0A%20%20%3Crect%20x%3D%2285%22%20y%3D%2217%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%235a96c4%22%2F%3E%0A%20%20%3Crect%20x%3D%2289%22%20y%3D%2219%22%20width%3D%223%22%20height%3D%222%22%20fill%3D%22%23446b88%22%2F%3E%0A%20%20%3C%21--%20windows%20%2F%20seams%20%2F%20markings%20--%3E%0A%20%20%3Crect%20x%3D%2226%22%20y%3D%2222%22%20width%3D%221%22%20height%3D%2210%22%20fill%3D%22%23b8bcbc%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2221%22%20width%3D%221%22%20height%3D%2212%22%20fill%3D%22%23b8bcbc%22%2F%3E%3Crect%20x%3D%2254%22%20y%3D%2221%22%20width%3D%221%22%20height%3D%2212%22%20fill%3D%22%23b8bcbc%22%2F%3E%0A%20%20%3Crect%20x%3D%2260%22%20y%3D%2226%22%20width%3D%226%22%20height%3D%224%22%20fill%3D%22%23204e8e%22%2F%3E%3Crect%20x%3D%2260%22%20y%3D%2226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23c53a42%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%2249%22%20cy%3D%2229%22%20r%3D%222%22%20fill%3D%22%231a5e9a%22%20stroke%3D%22%23eff2f0%22%20stroke-width%3D%221%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M48%2030%20L50%2028%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%221%22%2F%3E%0A%20%20%3Crect%20x%3D%2228%22%20y%3D%2229%22%20width%3D%224%22%20height%3D%223%22%20fill%3D%22%23cdd2d1%22%2F%3E%3Crect%20x%3D%2272%22%20y%3D%2228%22%20width%3D%225%22%20height%3D%224%22%20fill%3D%22%23cdd2d1%22%2F%3E%0A%20%20%3Crect%20x%3D%2285%22%20y%3D%2228%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23d4d9d8%22%2F%3E%3Crect%20x%3D%2287%22%20y%3D%2229%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23d4d9d8%22%2F%3E%3Crect%20x%3D%2289%22%20y%3D%2230%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23d4d9d8%22%2F%3E%0A%20%20%3C%21--%20top%20outline%20accents%20--%3E%0A%20%20%3Cpath%20d%3D%22M17%2017%20L42%2016%20L79%2017%20L88%2019%22%20stroke%3D%22%23fbfbf9%22%20stroke-width%3D%221%22%20fill%3D%22none%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M18%2015%20L22%2012%20L25%2010%20L28%2010%20L31%2012%20L36%2018%22%20stroke%3D%22%2369737a%22%20stroke-width%3D%221%22%20fill%3D%22none%22%2F%3E%0A%3C%2Fsvg%3E";
+        const shuttleTankSprite = new Image();
+        shuttleTankSprite.src = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20140%2052%22%20width%3D%22560%22%20height%3D%22208%22%20shape-rendering%3D%22crispEdges%22%3E%0A%20%20%3C%21--%20larger%20sprite-style%20Space%20Shuttle%20external%20tank%20--%3E%0A%20%20%3Cpath%20d%3D%22M9%2026%20L20%2017%20L88%2015%20L116%2016%20L129%2019%20L136%2022%20L139%2026%20L136%2030%20L129%2034%20L116%2037%20L88%2038%20L20%2035%20Z%22%20fill%3D%22%23d78431%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M12%2026%20L21%2019%20L86%2018%20L114%2019%20L126%2022%20L131%2026%20L126%2030%20L114%2033%20L86%2034%20L21%2032%20Z%22%20fill%3D%22%23e39a45%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M116%2016%20L129%2019%20L137%2025%20L137%2028%20L129%2034%20L116%2037%20Z%22%20fill%3D%22%23c96f1e%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M9%2026%20L20%2017%20L20%2035%20Z%22%20fill%3D%22%23aa5d1a%22%2F%3E%0A%20%20%3Crect%20x%3D%2229%22%20y%3D%2218%22%20width%3D%222%22%20height%3D%2216%22%20fill%3D%22%23b36521%22%2F%3E%0A%20%20%3Crect%20x%3D%2258%22%20y%3D%2217%22%20width%3D%222%22%20height%3D%2218%22%20fill%3D%22%23b36521%22%2F%3E%0A%20%20%3Crect%20x%3D%2286%22%20y%3D%2216%22%20width%3D%222%22%20height%3D%2220%22%20fill%3D%22%23b36521%22%2F%3E%0A%20%20%3Crect%20x%3D%2224%22%20y%3D%2221%22%20width%3D%2292%22%20height%3D%221%22%20fill%3D%22%23f2bd72%22%2F%3E%0A%20%20%3Crect%20x%3D%2224%22%20y%3D%2230%22%20width%3D%2292%22%20height%3D%221%22%20fill%3D%22%23b15f20%22%2F%3E%0A%20%20%3Crect%20x%3D%2214%22%20y%3D%2222%22%20width%3D%222%22%20height%3D%228%22%20fill%3D%22%237c4316%22%2F%3E%0A%20%20%3Crect%20x%3D%2216%22%20y%3D%2223%22%20width%3D%2210%22%20height%3D%222%22%20fill%3D%22%23884a17%22%2F%3E%0A%20%20%3Crect%20x%3D%2217%22%20y%3D%2227%22%20width%3D%2210%22%20height%3D%222%22%20fill%3D%22%23884a17%22%2F%3E%0A%20%20%3Crect%20x%3D%2244%22%20y%3D%2235%22%20width%3D%2234%22%20height%3D%222%22%20fill%3D%22%23efac59%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M89%2015%20L116%2016%20L130%2021%22%20stroke%3D%22%23f0b86b%22%20stroke-width%3D%221%22%20fill%3D%22none%22%2F%3E%0A%3C%2Fsvg%3E";
+
+        // Identical NASA livery for all orbiters; achievements unlock names only.
+        const SHUTTLE_PAINTS = ["Discovery", "Challenger", "Columbia", "Endeavour", "Atlantis", "Enterprise"].map(name => ({
+          name, body: "#f1f1ea", accent: "#222a31", glass: "#273e58"
+        }));
         // SR-71 is exclusively available in its approved Skunkworks livery.
         const SR71_PAINTS = [
           {
@@ -975,7 +975,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             return Number(unlocked[id] || (paints.length === 1 ? 1 : 0)) >= paints.length;
           });
 
-        const DEV_SPACE_TEST = false; // Secret World 4 stays hidden until legitimately unlocked.
+        const DEV_SPACE_TEST = false; // Production: preserve the Space achievement unlock requirement.
         function syncSecretSpaceWorld() {
           if (!worldSelect) return;
           let opt = Array.from(worldSelect.options).find(
@@ -1256,28 +1256,29 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             // air-obstacle collision system, but render as satellites/asteroids.
             const spacePattern = [
               { slot: 0, type: "lightplane", y: 82, width: 66, height: 39 },
-              { slot: 1, type: "helicopter", y: 214, width: 58, height: 58 },
-              { slot: 2, type: "helicopter", y: 112, width: 66, height: 66 },
+              { slot: 1, type: "helicopter", y: 214, width: 42, height: 42 },
+              { slot: 2, type: "helicopter", y: 112, width: 59, height: 59 },
               { slot: 3, type: "lightplane", y: 238, width: 68, height: 40 },
-              { slot: 4, type: "helicopter", y: 72, width: 54, height: 54 },
+              { slot: 4, type: "helicopter", y: 72, width: 49, height: 49 },
               { slot: 5, type: "lightplane", y: 176, width: 68, height: 40 },
-              { slot: 6, type: "helicopter", y: 252, width: 62, height: 62 },
-              { slot: 7, type: "helicopter", y: 120, width: 58, height: 58 },
+              { slot: 6, type: "helicopter", y: 252, width: 77, height: 77 },
+              { slot: 7, type: "helicopter", y: 120, width: 65, height: 65 },
               { slot: 9, type: "lightplane", y: 204, width: 66, height: 39 },
-              { slot: 11, type: "helicopter", y: 88, width: 62, height: 62 },
+              { slot: 11, type: "helicopter", y: 88, width: 55, height: 55 },
               { slot: 13, type: "lightplane", y: 246, width: 68, height: 40 },
-              { slot: 14, type: "helicopter", y: 142, width: 58, height: 58 },
+              { slot: 14, type: "helicopter", y: 142, width: 70, height: 70 },
               // Low-orbit debris: no permanently safe corridor along the bottom.
-              { slot: 2.5, type: "helicopter", y: 418, width: 70, height: 70 },
-              { slot: 5.5, type: "lightplane", y: 436, width: 78, height: 46 },
-              { slot: 8.5, type: "helicopter", y: 420, width: 74, height: 74 },
+              { slot: 2.5, type: "helicopter", y: 418, width: 83, height: 83 },
+              { slot: 5.5, type: "lightplane", y: 436, width: 78, height: 46, sputnik: true },
+              { slot: 8.5, type: "helicopter", y: 420, width: 90, height: 90 },
               { slot: 11.5, type: "lightplane", y: 438, width: 80, height: 46 },
-              { slot: 14.5, type: "helicopter", y: 422, width: 72, height: 72 },
+              { slot: 14.5, type: "helicopter", y: 422, width: 73, height: 73 },
             ];
             return spacePattern.map((o, i) => ({
               x: START_X + o.slot * (SPACING + 32) + 205,
               y: o.y,
               type: o.type,
+              sputnik: !!o.sputnik,
               color: i % 2,
               width: o.width,
               height: o.height,
@@ -1371,7 +1372,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           return aircraft;
         }
         function refreshPaints() {
-          const paintId = inLamprey() ? "lampreyUAV" : aircraftSelect.value;
+          const paintId = inLamprey() ? "lampreyUAV" : getWorldConfig().id === "space" ? "shuttle" : aircraftSelect.value;
           const schemes = paintsFor(paintId);
           const count = Math.max(
             1,
@@ -1399,6 +1400,15 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           sr71Option.textContent = ready
             ? "SR-71"
             : "SR-71 — land all six to unlock";
+          let shuttleOption = aircraftSelect.querySelector('option[value="shuttle"]');
+          if (!shuttleOption) {
+            shuttleOption = document.createElement("option");
+            shuttleOption.value = "shuttle";
+            aircraftSelect.appendChild(shuttleOption);
+          }
+          shuttleOption.disabled = !(DEV_SPACE_TEST || isSpaceUnlocked());
+          shuttleOption.hidden = getWorldConfig().id === "space";
+          shuttleOption.textContent = shuttleOption.disabled ? "Space Shuttle — unlock Space first" : "Space Shuttle Discovery";
         }
         function updateWorldControlState() {
           const activeFlight = ["spaceLaunch", "takeoff", "flying", "landing"].includes(state);
@@ -1419,7 +1429,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             paint = LAMPREY_UAV_PAINTS[Number(paintSelect.value)] || LAMPREY_UAV_PAINTS[0];
           } else if (worldSelect.value === "space") {
             plane = PLANES.find((p) => p.id === "shuttle");
-            paint = SHUTTLE_PAINTS[0];
+            paint = SHUTTLE_PAINTS[Number(paintSelect.value)] || SHUTTLE_PAINTS[0];
           }
           if (
             worldSelect.value !== "space" &&
@@ -1432,6 +1442,11 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           if (worldSelect.value !== "space" && !inLamprey()) {
             plane =
               PLANES.find((p) => p.id === aircraftSelect.value) || PLANES[0];
+            if (plane.id === "shuttle") {
+              // Non-space shuttle inherits P-38 flight speed, lift and gravity.
+              const p38 = PLANES.find(p => p.id === "p38");
+              plane = {...plane, speed:p38.speed, lift:p38.lift, gravity:p38.gravity};
+            }
             paint =
               paintsFor(plane.id)[Number(paintSelect.value)] ||
               paintsFor(plane.id)[0];
@@ -1582,7 +1597,15 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             return;
           }
           if (state === "flying" || state === "upsideDown") {
-            if (getWorldConfig().id === "space") spacePilotEngaged = true;
+            if (getWorldConfig().id === "space" && plane.id === "shuttle") {
+              // First press engages piloting; bottom nose RCS delivers a short
+              // upward impulse. Sustained climb thrust is handled in update().
+              spacePilotEngaged = true;
+              player.fallFrames = 0;
+              player.vy = Math.max(-3.0, player.vy - 0.95);
+              player.pitch = -0.16;
+              return;
+            }
             player.fallFrames = 0;
             player.vy = plane.lift;
             // Visual-only pitch: fixed-wing aircraft raise the nose about 18 degrees;
@@ -1638,10 +1661,13 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           helicopterTick = 0;
           if (state === "crashed" || state === "landed") state = "menu";
           refreshLampreyAircraft();
+          refreshAircraftOptions();
+          refreshPaints();
           syncVintageMode();
           if (world.id === "space") {
             plane = PLANES.find((p) => p.id === "shuttle");
-            paint = SHUTTLE_PAINTS[0];
+            refreshPaints();
+            paint = SHUTTLE_PAINTS[Number(paintSelect.value)] || SHUTTLE_PAINTS[0];
           } else if (inLamprey()) {
             plane = {id:"lampreyUAV",name:"Lamprey MMAUV",speed:4.65,lift:-5.9,gravity:0.265,w:94,h:29,score:5};
             paint = LAMPREY_UAV_PAINTS[Number(paintSelect.value)] || LAMPREY_UAV_PAINTS[0];
@@ -1758,11 +1784,13 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           ) {
             e.preventDefault();
             flap();
-            spaceHeld = true;
+              spaceHeld = true;
           }
         });
         document.addEventListener("keyup", (e) => {
-          if (e.code === "Space") spaceHeld = false;
+          if (e.code === "Space") {
+            spaceHeld = false;
+            }
         });
 
         function rect(x, y, w, h, color) {
@@ -2531,192 +2559,83 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           }
           if (p.id === "shuttle") {
             ctx.scale(w / 112, h / 48);
-            // Columbia-inspired side profile: long white orbiter, black thermal belly/nose,
-            // tall swept tail, delta wing, cockpit windows and three main engines.
-            polygon(
-              [
-                [-53, -7],
-                [-44, -11],
-                [-10, -13],
-                [23, -12],
-                [40, -8],
-                [54, -2],
-                [48, 4],
-                [30, 8],
-                [-8, 11],
-                [-43, 10],
-                [-54, 5],
-              ],
-              "#f3f2ed",
-            );
-            // black thermal protection system: nose cap + continuous belly
-            polygon(
-              [
-                [40, -8],
-                [54, -2],
-                [48, 4],
-                [37, 5],
-                [34, 0],
-              ],
-              "#171b20",
-            );
-            polygon(
-              [
-                [-52, 4],
-                [-31, 7],
-                [-6, 8],
-                [22, 6],
-                [47, 2],
-                [48, 6],
-                [27, 11],
-                [-7, 15],
-                [-43, 13],
-                [-54, 7],
-              ],
-              "#171b20",
-            );
-            // visible lower delta wing, shaped like Columbia on approach
-            polygon(
-              [
-                [-24, 4],
-                [-42, 20],
-                [-12, 18],
-                [18, 10],
-                [32, 5],
-                [16, 3],
-              ],
-              "#e5e4de",
-            );
-            polygon(
-              [
-                [-39, 12],
-                [-13, 15],
-                [16, 9],
-                [26, 6],
-                [18, 10],
-                [-12, 19],
-                [-42, 20],
-              ],
-              "#20242a",
-            );
-            // tall vertical stabilizer at rear
-            polygon(
-              [
-                [-40, -8],
-                [-49, -29],
-                [-39, -29],
-                [-20, -9],
-              ],
-              "#ecebe6",
-            );
-            polygon(
-              [
-                [-45, -13],
-                [-49, -28],
-                [-44, -27],
-                [-31, -10],
-              ],
-              "#20242a",
-            );
-            // cockpit glazing
-            polygon(
-              [
-                [25, -10],
-                [35, -8],
-                [42, -5],
-                [36, -2],
-                [25, -4],
-              ],
-              "#151b22",
-            );
-            rect(21, -8, 4, 4, "#151b22");
-            // payload bay doors / fuselage seams
-            rect(-24, -10, 2, 15, "#c9c8c2");
-            rect(-8, -11, 2, 17, "#c9c8c2");
-            rect(8, -10, 2, 15, "#c9c8c2");
-            // USA flag and tiny Columbia marking cues
-            rect(13, -1, 7, 4, "#234d91");
-            rect(13, -1, 3, 2, "#b62e37");
-            rect(23, 0, 8, 2, "#747474");
-            // three engine bells
-            polygon(
-              [
-                [-53, -8],
-                [-61, -11],
-                [-62, -6],
-                [-53, -3],
-              ],
-              "#555d66",
-            );
-            polygon(
-              [
-                [-54, -2],
-                [-63, -3],
-                [-64, 3],
-                [-54, 2],
-              ],
-              "#555d66",
-            );
-            polygon(
-              [
-                [-53, 3],
-                [-61, 6],
-                [-62, 11],
-                [-53, 8],
-              ],
-              "#555d66",
-            );
-            // bright orbital maneuvering / game exhaust
+            // Detailed dedicated side-view NASA orbiter sprite.
+            if (shuttleOrbiterSprite.complete && shuttleOrbiterSprite.naturalWidth) {
+              ctx.imageSmoothingEnabled = false;
+              ctx.drawImage(shuttleOrbiterSprite, -65, -30, 130, 52);
+            }
+            // RCS thruster ports near the nose.
+            ctx.fillStyle = "#606972";
+            ctx.beginPath(); ctx.ellipse(45.2, -8.6, 1.45, 1.0, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(45.0, 8.8, 1.45, 1.0, 0, 0, Math.PI * 2); ctx.fill();
+            // In zero-gravity Space flight the lower RCS pushes up while held;
+            // the upper RCS continuously pushes down whenever the control is released.
+            const shuttleControlled = getWorldConfig().id === "space" && state === "flying" && spacePilotEngaged;
+            const climbBurst = shuttleControlled && (climbHeld || spaceHeld);
+            const releaseBurst = shuttleControlled && !(climbHeld || spaceHeld);
+            const drawShuttleRcsBurst = (portX, portY, dir, mode = "hold") => {
+              const t = performance.now() * 0.028;
+              const pulse = 0.88 + 0.17 * Math.sin(t + (dir > 0 ? 0.6 : 1.7));
+              ctx.save();
+              ctx.fillStyle = "rgba(215,232,245,0.72)";
+              ctx.globalAlpha = mode === "release" ? 0.48 : 0.44;
+              ctx.beginPath();
+              ctx.ellipse(portX + 4.8, portY + dir * 1.8, 4.9 * pulse, 2.0 * pulse, dir * 0.10, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.globalAlpha = mode === "release" ? 0.31 : 0.28;
+              ctx.beginPath();
+              ctx.ellipse(portX + 10.8, portY + dir * 4.5, 8.0 * pulse, 2.8 * pulse, dir * 0.14, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.globalAlpha = mode === "release" ? 0.14 : 0.12;
+              ctx.beginPath();
+              ctx.ellipse(portX + 17.0, portY + dir * 6.9, 9.4 * pulse, 3.5 * pulse, dir * 0.18, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            };
+            if (climbBurst) drawShuttleRcsBurst(45.0, 8.8, 1, "hold");
+            if (releaseBurst) drawShuttleRcsBurst(45.2, -8.6, -1, "release");
+            // Three main engine plumes.
             const plume = 11 + (Math.floor(camera / 14) % 5);
-            polygon(
-              [
-                [-61, -9],
-                [-61 - plume, -6],
-                [-61, -4],
-              ],
-              "#f4a13b",
-            );
-            polygon(
-              [
-                [-64, -1],
-                [-64 - plume - 4, 0],
-                [-64, 2],
-              ],
-              "#ffe28a",
-            );
-            polygon(
-              [
-                [-61, 6],
-                [-61 - plume, 8],
-                [-61, 9],
-              ],
-              "#f4a13b",
-            );
+            polygon([
+              [-60,-8],[-60-plume,-6],[-60,-4]
+            ], "#f4a13b");
+            polygon([
+              [-63,-1],[-67-plume,0],[-63,2]
+            ], "#ffe28a");
+            polygon([
+              [-60,6],[-60-plume,8],[-60,9]
+            ], "#f4a13b");
+            // Engine bells. Use a defined color; the prior bare `mid`
+            // identifier raised a ReferenceError and stopped rendering.
+            const shuttleEngineMetal = "#30363d"; // dark-gray engine overlays, not light-gray rectangles
+            polygon([[-52,-8],[-60,-11],[-61,-6],[-52,-3]], shuttleEngineMetal);
+            polygon([[-53,-2],[-62,-3],[-63,3],[-53,2]], shuttleEngineMetal);
+            polygon([[-52,3],[-60,6],[-61,11],[-52,8]], shuttleEngineMetal);
             // Space Shuttle landing gear: retracted during launch/orbit,
             // deploys smoothly on final lunar approach, stays down on touchdown.
             const runwayDistance = RUNWAY_X - camera - PLANE_X;
             const gearProgress = state === "landed" || state === "landing"
               ? 1
-              : state === "flying" && getWorldConfig().id === "space"
+              : state === "takeoff" && getWorldConfig().id !== "space" ? Math.max(0, 1 - Math.max(0, takeoffFrames - 210) / 85)
+              : state === "flying"
                 ? Math.max(0, Math.min(1, (600 - runwayDistance) / 330))
                 : 0;
             if (gearProgress > 0) {
               ctx.save();
               const extension = gearProgress;
-              // Aft main gear and forward nose gear follow the shuttle's
-              // local coordinates, so they tilt naturally with the orbiter.
-              for (const [gx, gy, length, radius] of [
-                [-24, 13, 12, 4.5],
-                [31, 7, 11, 3.5],
+              // Shorter, lower shuttle gear: squat stance rather than long stilts.
+              for (const [gx, gy, length, radius, wheelH] of [
+                [-24, 15.4, 4.8, 3.4, 2.6],
+                [31, 11.8, 4.2, 2.6, 2.1],
               ]) {
                 const bottom = gy + length * extension;
-                rect(gx - 2, gy, 4, Math.max(2, length * extension), "#737a81");
-                rect(gx - 3, bottom - 2, 6, 3, "#c2c5c8");
+                rect(gx - 1.5, gy, 3, Math.max(1.5, length * extension), "#737a81");
+                rect(gx - 3, bottom - 1.5, 6, 2.5, "#c2c5c8");
                 ctx.fillStyle = "#171b20";
                 ctx.beginPath();
-                ctx.ellipse(gx, bottom + 2, radius, 3.7, 0, 0, Math.PI * 2);
+                ctx.ellipse(gx, bottom + 1.3, radius, wheelH, 0, 0, Math.PI * 2);
                 ctx.fill();
-                rect(gx - 1, bottom, 2, 2, "#899098");
+                rect(gx - 1, bottom - 0.2, 2, 1.6, "#899098");
               }
               ctx.restore();
             }
@@ -3128,7 +3047,23 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           ctx.restore();
         }
 
+        // Predecoded, self-contained sprites: no network requests or runtime image generation.
+        // Three reference-inspired obstacle variants, drawn at existing collision dimensions.
+        const spaceSatelliteSprite0 = new Image();
+        spaceSatelliteSprite0.src = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20128%2076%22%20shape-rendering%3D%22geometricPrecision%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22metal%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23e1e5e6%22%2F%3E%3Cstop%20offset%3D%22.45%22%20stop-color%3D%22%238b959d%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23424d59%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%0A%3C%21--%20reference%201%3A%20scientific%20observatory%2C%20diagonal%20opposing%20solar%20wings%20and%20big%20reflector%20--%3E%0A%3Cg%20transform%3D%22rotate%28-28%2064%2038%29%22%3E%3Cpath%20d%3D%22M56%2030%20L12%2030%20M73%2047%20L118%2047%22%20stroke%3D%22%23adbac3%22%20stroke-width%3D%223%22%2F%3E%3Cpath%20d%3D%22M2%2013H48V35H2Z%22%20fill%3D%22%231b3e64%22%20stroke%3D%22%23cba873%22%20stroke-width%3D%222%22%2F%3E%3Cpath%20d%3D%22M80%2041H126V63H80Z%22%20fill%3D%22%231b3e64%22%20stroke%3D%22%23cba873%22%20stroke-width%3D%222%22%2F%3E%3Cg%20stroke%3D%22%237997ae%22%20stroke-width%3D%221%22%3E%3Cpath%20d%3D%22M14%2013v22M26%2013v22M38%2013v22M92%2041v22M104%2041v22M116%2041v22M2%2024h46M80%2052h46%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%0A%3Cpath%20d%3D%22M52%2029L62%2023%2081%2031%2081%2051%2066%2058%2051%2048Z%22%20fill%3D%22url%28%23metal%29%22%20stroke%3D%22%23202c36%22%20stroke-width%3D%222%22%2F%3E%3Cpath%20d%3D%22M60%2025L72%2029V54L61%2050Z%22%20fill%3D%22%234d5c69%22%2F%3E%3Cpath%20d%3D%22M52%2031l13%205M53%2040l12%205M72%2033l9-3M72%2044l9-3%22%20stroke%3D%22%23c6b18e%22%20stroke-width%3D%221.5%22%2F%3E%3Cpath%20d%3D%22M61%2031L48%2019%22%20stroke%3D%22%23b3bdc2%22%20stroke-width%3D%222%22%2F%3E%3Cpath%20d%3D%22M32%2011Q44%20-2%2060%2010Q58%2021%2048%2024Q38%2024%2032%2011%22%20fill%3D%22%23d9dddb%22%20stroke%3D%22%235e6c78%22%20stroke-width%3D%222%22%2F%3E%3Cpath%20d%3D%22M35%2011Q45%206%2056%2011%22%20fill%3D%22none%22%20stroke%3D%22%23f6f6ed%22%20stroke-width%3D%222%22%2F%3E%3Ccircle%20cx%3D%2248%22%20cy%3D%2212%22%20r%3D%223%22%20fill%3D%22%23586a79%22%2F%3E%3Cpath%20d%3D%22M48%2012L41%201%22%20stroke%3D%22%238294a1%22%20stroke-width%3D%222%22%2F%3E%3C%2Fsvg%3E";
+        const spaceSatelliteSprite1 = new Image();
+        spaceSatelliteSprite1.src = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20128%2076%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22gold%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23e7dab0%22%2F%3E%3Cstop%20offset%3D%22.5%22%20stop-color%3D%22%23a9986e%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23716449%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%0A%3C%21--%20reference%202%3A%20gold%20cylindrical%20communications%20satellite%20with%20opposing%20dark%20blue%20solar%20arrays%20--%3E%0A%3Cpath%20d%3D%22M46%2037H27M85%2037H104%22%20stroke%3D%22%23bbc2c8%22%20stroke-width%3D%223%22%2F%3E%3Cpath%20d%3D%22M2%2015L42%2026L42%2057L2%2046Z%22%20fill%3D%22%23173455%22%20stroke%3D%22%238d9ca8%22%20stroke-width%3D%222%22%2F%3E%3Cpath%20d%3D%22M86%2024L126%2012L126%2045L86%2056Z%22%20fill%3D%22%23142c4d%22%20stroke%3D%22%238d9ca8%22%20stroke-width%3D%222%22%2F%3E%3Cg%20stroke%3D%22%23648bac%22%20stroke-width%3D%221.5%22%3E%3Cpath%20d%3D%22M11%2017v32M21%2020v32M31%2023v32M2%2030L42%2040M2%2039L42%2049M96%2021v32M106%2018v32M116%2015v32M86%2037L126%2026M86%2046L126%2035%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M43%2027L72%2017%2089%2027%2089%2048%2064%2059%2043%2049Z%22%20fill%3D%22url%28%23gold%29%22%20stroke%3D%22%2341444a%22%20stroke-width%3D%222%22%2F%3E%3Cpath%20d%3D%22M43%2031L73%2022%2073%2054%2043%2047Z%22%20fill%3D%22%23b8a77b%22%2F%3E%3Cpath%20d%3D%22M51%2028v23M62%2025v28M73%2022v31%22%20stroke%3D%22%23eee0ba%22%20stroke-width%3D%221.3%22%2F%3E%3Cpath%20d%3D%22M78%2022L87%2028V47L78%2051Z%22%20fill%3D%22%23e0e2de%22%20stroke%3D%22%2366737a%22%20stroke-width%3D%221.5%22%2F%3E%3Cpath%20d%3D%22M40%2029L28%2019%2018%2027%2031%2037Z%22%20fill%3D%22%23222d37%22%20stroke%3D%22%2388959c%22%20stroke-width%3D%221.5%22%2F%3E%3Cpath%20d%3D%22M23%2022L31%2029%22%20stroke%3D%22%23d6dce2%22%20stroke-width%3D%221.3%22%2F%3E%3Cpath%20d%3D%22M81%2036l13-8%22%20stroke%3D%22%23c8d2d8%22%20stroke-width%3D%222%22%2F%3E%3C%2Fsvg%3E";
+        const spaceSatelliteSprite2 = new Image();
+        spaceSatelliteSprite2.src = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20128%2076%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22c%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23e2e4e1%22%2F%3E%3Cstop%20offset%3D%22.5%22%20stop-color%3D%22%238a9598%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233e4b54%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%0A%3C%21--%20reference%203%3A%20strong%20diagonal%20two-panel%20silhouette%20and%20large%20dish%20--%3E%0A%3Cg%20transform%3D%22rotate%28-19%2064%2038%29%22%3E%3Cpath%20d%3D%22M4%2024H43V51H4Z%22%20fill%3D%22%233975b6%22%20stroke%3D%22%232c3844%22%20stroke-width%3D%222%22%2F%3E%3Cpath%20d%3D%22M87%2024H125V51H87Z%22%20fill%3D%22%233769a5%22%20stroke%3D%22%232c3844%22%20stroke-width%3D%222%22%2F%3E%3Cg%20stroke%3D%22%239cc6e2%22%20stroke-width%3D%221%22%3E%3Cpath%20d%3D%22M13%2024v27M22%2024v27M31%2024v27M40%2024v27M96%2024v27M106%2024v27M116%2024v27M4%2033h39M4%2042h39M87%2033h38M87%2042h38%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M43%2037h10M77%2037h10%22%20stroke%3D%22%23ced4d4%22%20stroke-width%3D%223%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M49%2029L63%2023%2079%2031V53L64%2060%2049%2051Z%22%20fill%3D%22url%28%23c%29%22%20stroke%3D%22%23202a33%22%20stroke-width%3D%222%22%2F%3E%3Cpath%20d%3D%22M54%2030l13-5v32l-13-5Z%22%20fill%3D%22%2399a4a8%22%2F%3E%3Cpath%20d%3D%22M58%2032v18M63%2030v22M72%2031v23%22%20stroke%3D%22%23d6dad8%22%20stroke-width%3D%221.2%22%2F%3E%3Cpath%20d%3D%22M77%2037L91%2029%22%20stroke%3D%22%23bfc8c8%22%20stroke-width%3D%222%22%2F%3E%3Cpath%20d%3D%22M86%2013Q110%208%20122%2027Q110%2041%2091%2033Q82%2027%2086%2013%22%20fill%3D%22%23ebede7%22%20stroke%3D%22%2377858d%22%20stroke-width%3D%222%22%2F%3E%3Cpath%20d%3D%22M88%2015Q107%2013%20118%2027%22%20stroke%3D%22%23bbc5c7%22%20stroke-width%3D%221.5%22%20fill%3D%22none%22%2F%3E%3Ccircle%20cx%3D%22109%22%20cy%3D%2227%22%20r%3D%223%22%20fill%3D%22%235c6971%22%2F%3E%3Cpath%20d%3D%22M109%2027l9-11%22%20stroke%3D%22%2364737d%22%20stroke-width%3D%221.7%22%2F%3E%3C%2Fsvg%3E";
+        const spaceAsteroidSprite = new Image();
+        spaceAsteroidSprite.src = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2096%22%3E%3Cdefs%3E%3CradialGradient%20id%3D%22a%22%20cx%3D%22.32%22%20cy%3D%22.26%22%20r%3D%22.77%22%3E%3Cstop%20stop-color%3D%22%23c5b8a7%22%2F%3E%3Cstop%20offset%3D%22.55%22%20stop-color%3D%22%237b7775%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23373d43%22%2F%3E%3C%2FradialGradient%3E%3C%2Fdefs%3E%3Cpath%20d%3D%22M41%204L60%209%2077%203%2092%2021%2085%2040%2094%2054%2084%2076%2066%2089%2042%2092%2023%2084%209%2065%202%2042%2016%2020Z%22%20fill%3D%22url%28%23a%29%22%20stroke%3D%22%23232a30%22%20stroke-width%3D%223%22%2F%3E%3Cpath%20d%3D%22M14%2028l17-9%209%208-5%2015-19%204-8-6z%22%20fill%3D%22%23918d86%22%2F%3E%3Cpath%20d%3D%22M56%2013l16%202%209%2018-7%2011-18-4-7-13z%22%20fill%3D%22%23555b5e%22%2F%3E%3Cpath%20d%3D%22M31%2053l15-11%2014%2010-5%2020-18%202-13-10z%22%20fill%3D%22%2352575b%22%20stroke%3D%22%23a5a096%22%20stroke-width%3D%222%22%2F%3E%3Cpath%20d%3D%22M66%2063l15-6%203%2011-13%2011-12-5z%22%20fill%3D%22%23aaa296%22%2F%3E%3Ccircle%20cx%3D%2227%22%20cy%3D%2235%22%20r%3D%225%22%20fill%3D%22%23464b4d%22%2F%3E%3Ccircle%20cx%3D%2271%22%20cy%3D%2229%22%20r%3D%225%22%20fill%3D%22%23888783%22%2F%3E%3Cpath%20d%3D%22M21%2071l15%2011M62%2083l14-9%22%20stroke%3D%22%23c1b6a8%22%20stroke-width%3D%222%22%2F%3E%3C%2Fsvg%3E";
         function drawSpaceAsteroid(a, sx) {
+          if (spaceAsteroidSprite.complete && spaceAsteroidSprite.naturalWidth) {
+            ctx.save();ctx.translate(Math.round(sx),Math.round(a.y));
+            ctx.rotate(Math.sin(camera * 0.001 + a.x * 0.0002) * 0.15);
+            ctx.drawImage(spaceAsteroidSprite,-a.width/2,-a.height/2,a.width,a.height);
+            ctx.restore();return;
+          }
           ctx.save();
           ctx.translate(Math.round(sx), Math.round(a.y));
           const r = Math.max(14, Math.min(a.width, a.height) * 0.42);
@@ -3154,7 +3089,35 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           ctx.fill();
           ctx.restore();
         }
+        const spaceSputnikSprite = new Image();
+        spaceSputnikSprite.src = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22512%22%20height%3D%22288%22%20viewBox%3D%220%200%20128%2072%22%3E%0A%3Cdefs%3E%0A%3CradialGradient%20id%3D%22metal%22%20cx%3D%2227%25%22%20cy%3D%2225%25%22%20r%3D%2277%25%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f5fafb%22%2F%3E%3Cstop%20offset%3D%22.24%22%20stop-color%3D%22%23bfcdd2%22%2F%3E%3Cstop%20offset%3D%22.53%22%20stop-color%3D%22%238197a4%22%2F%3E%3Cstop%20offset%3D%22.77%22%20stop-color%3D%22%23435865%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%231a2632%22%2F%3E%3C%2FradialGradient%3E%0A%3ClinearGradient%20id%3D%22rim%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%220%22%3E%3Cstop%20stop-color%3D%22%23d6e0e2%22%2F%3E%3Cstop%20offset%3D%22.42%22%20stop-color%3D%22%23516575%22%2F%3E%3Cstop%20offset%3D%22.83%22%20stop-color%3D%22%231b2833%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23859ba5%22%2F%3E%3C%2FlinearGradient%3E%0A%3C%2Fdefs%3E%0A%3C%21--%20four%20separate%20antenna%20sockets%20along%20the%20sphere%20outer%20rim%2C%20upper%20shoulder%20%2F%20equator%20%2F%20lower%20shoulder%20--%3E%0A%3Cg%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%3E%0A%3Cpath%20d%3D%22M43%2018%20L119%206%22%20stroke%3D%22%23222f39%22%20stroke-width%3D%222.25%22%2F%3E%3Cpath%20d%3D%22M43%2018%20L119%206%22%20stroke%3D%22%23b0bfc4%22%20stroke-width%3D%22.8%22%2F%3E%0A%3Cpath%20d%3D%22M51%2033%20L126%2034%22%20stroke%3D%22%2324323c%22%20stroke-width%3D%222%22%2F%3E%3Cpath%20d%3D%22M51%2033%20L126%2034%22%20stroke%3D%22%23c8d3d6%22%20stroke-width%3D%22.8%22%2F%3E%0A%3Cpath%20d%3D%22M44%2054%20L121%2070%22%20stroke%3D%22%2320303b%22%20stroke-width%3D%222.1%22%2F%3E%3Cpath%20d%3D%22M44%2054%20L121%2070%22%20stroke%3D%22%23b4c2c7%22%20stroke-width%3D%22.8%22%2F%3E%0A%3Cpath%20d%3D%22M49%2046%20L89%2064%22%20stroke%3D%22%2321303a%22%20stroke-width%3D%221.8%22%2F%3E%3Cpath%20d%3D%22M49%2046%20L89%2064%22%20stroke%3D%22%239daeb5%22%20stroke-width%3D%22.65%22%2F%3E%0A%3C%2Fg%3E%0A%3C%21--%20Sputnik%20sphere%2C%20darker%20rear%20hemisphere%3B%20broad%20chrome%20highlight%20and%20metallic%20shading%20--%3E%0A%3Ccircle%20cx%3D%2230%22%20cy%3D%2236%22%20r%3D%2222%22%20fill%3D%22url%28%23metal%29%22%20stroke%3D%22%239baab2%22%20stroke-width%3D%221.45%22%2F%3E%0A%3Cpath%20d%3D%22M43%2018%20C50%2025%2053%2042%2043%2054%22%20fill%3D%22none%22%20stroke%3D%22%231e2935%22%20stroke-width%3D%222.6%22%2F%3E%0A%3Cpath%20d%3D%22M45%2020%20C51%2029%2052%2044%2044%2052%22%20fill%3D%22none%22%20stroke%3D%22%23b7c6ca%22%20stroke-width%3D%221.15%22%2F%3E%0A%3C%21--%20thin%20joint%2Frim%20running%20on%20near%20side%2C%20not%20just%20a%20generic%20round%20ball%20--%3E%0A%3Cpath%20d%3D%22M15%2020%20C21%2017%2026%2015%2030%2014%20M12%2037%20C13%2049%2020%2056%2031%2058%22%20fill%3D%22none%22%20stroke%3D%22%23dde9ed%22%20stroke-width%3D%22.85%22%20opacity%3D%22.62%22%2F%3E%0A%3Cpath%20d%3D%22M17%2021%20C13%2028%2012%2038%2017%2047%22%20fill%3D%22none%22%20stroke%3D%22%23405461%22%20stroke-width%3D%22.65%22%20opacity%3D%22.85%22%2F%3E%0A%3Cpath%20d%3D%22M20%2020%20C27%2016%2035%2018%2039%2021%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%222.3%22%20opacity%3D%22.35%22%2F%3E%0A%3C%21--%20riveted%20panel%20seam%2C%20consistent%20subtle%20mechanical%20detail%20--%3E%0A%3Cg%20fill%3D%22%23172735%22%20stroke%3D%22%23bbccd3%22%20stroke-width%3D%22.4%22%3E%3Ccircle%20cx%3D%2245%22%20cy%3D%2223%22%20r%3D%221%22%2F%3E%3Ccircle%20cx%3D%2249%22%20cy%3D%2231%22%20r%3D%221%22%2F%3E%3Ccircle%20cx%3D%2250%22%20cy%3D%2240%22%20r%3D%221%22%2F%3E%3Ccircle%20cx%3D%2245%22%20cy%3D%2249%22%20r%3D%221%22%2F%3E%3C%2Fg%3E%0A%3C%21--%20antenna%20sockets%20with%20circular%20clamps%20--%3E%0A%3Cg%20fill%3D%22%2334434f%22%20stroke%3D%22%23b9c8ce%22%20stroke-width%3D%22.85%22%3E%3Ccircle%20cx%3D%2243%22%20cy%3D%2218%22%20r%3D%222%22%2F%3E%3Ccircle%20cx%3D%2251%22%20cy%3D%2233%22%20r%3D%221.8%22%2F%3E%3Ccircle%20cx%3D%2244%22%20cy%3D%2254%22%20r%3D%221.8%22%2F%3E%3Ccircle%20cx%3D%2249%22%20cy%3D%2246%22%20r%3D%221.4%22%2F%3E%3C%2Fg%3E%0A%3C%2Fsvg%3E";
         function drawSpaceSatellite(a, sx) {
+          if (a.sputnik) {
+            ctx.save();
+            ctx.translate(Math.round(sx), Math.round(a.y));
+            if (spaceSputnikSprite.complete && spaceSputnikSprite.naturalWidth) {
+              ctx.imageSmoothingEnabled = true;
+              ctx.drawImage(spaceSputnikSprite, -a.width / 2, -a.height / 2, a.width, a.height);
+            } else {
+              ctx.fillStyle = "#c0d0d8";
+              ctx.beginPath();ctx.arc(-a.width * .18, 0, a.height * .34, 0, Math.PI * 2);ctx.fill();
+              ctx.strokeStyle = "#aabec9";ctx.lineWidth = 1;
+              for (const endY of [-a.height * .42, 0, a.height * .42]) {
+                ctx.beginPath();ctx.moveTo(-a.width * .01, 0);ctx.lineTo(a.width * .48, endY);ctx.stroke();
+              }
+            }
+            ctx.restore();
+            return;
+          }
+
+          const satVariant = Math.abs(Math.round(a.x / 47)) % 3;
+          const satSprite = [spaceSatelliteSprite0, spaceSatelliteSprite1, spaceSatelliteSprite2][satVariant];
+          if (satSprite.complete && satSprite.naturalWidth) {
+            ctx.save();ctx.translate(Math.round(sx),Math.round(a.y));
+            ctx.imageSmoothingEnabled = true;
+            ctx.drawImage(satSprite,-a.width/2,-a.height/2,a.width,a.height);
+            ctx.restore();return;
+          }
           ctx.save();
           ctx.translate(Math.round(sx), Math.round(a.y));
           rect(-15, -11, 30, 22, "#b9bec6");
@@ -3227,124 +3190,22 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           ctx.stroke();
           ctx.restore();
         }
-        function drawSpaceTesla() {
-          // Rare background Easter egg: a recognizable red Roadster drifting harmlessly behind play.
-          const cycle = ((camera * 0.13) % (W + 900)) - 300;
-          const x = W - cycle;
-          const y = 150 + Math.sin(camera * 0.004) * 18;
-          if (x < -180 || x > W + 180) return;
-          ctx.save();
-          ctx.translate(Math.round(x), Math.round(y));
-          ctx.rotate(-0.1);
-
-          // Low, long sports-car body with a pointed nose and short rear deck.
-          polygon(
-            [
-              [-67, 5],
-              [-61, -4],
-              [-49, -10],
-              [-25, -12],
-              [-12, -24],
-              [15, -26],
-              [31, -17],
-              [53, -12],
-              [66, -4],
-              [70, 5],
-              [61, 12],
-              [-57, 12],
-            ],
-            "#c72f38",
-          );
-          // Brighter upper body line so the Roadster reads against black space.
-          polygon(
-            [
-              [-57, -4],
-              [-28, -8],
-              [-12, -20],
-              [15, -22],
-              [29, -14],
-              [53, -9],
-              [62, -3],
-              [-55, 1],
-            ],
-            "#e34a50",
-          );
-          // Open cockpit / windshield.
-          polygon(
-            [
-              [-9, -21],
-              [2, -30],
-              [18, -28],
-              [29, -16],
-              [18, -16],
-              [10, -23],
-              [-2, -22],
-            ],
-            "#8eb7cb",
-          );
-          polygon(
-            [
-              [18, -28],
-              [29, -16],
-              [23, -15],
-              [13, -24],
-            ],
-            "#314c60",
-          );
-
-          // Front and rear wheels with silver hubs.
-          for (const wx of [-43, 46]) {
-            ctx.beginPath();
-            ctx.arc(wx, 10, 11, 0, Math.PI * 2);
-            ctx.fillStyle = "#11151a";
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(wx, 10, 6, 0, Math.PI * 2);
-            ctx.fillStyle = "#7d8790";
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(wx, 10, 2, 0, Math.PI * 2);
-            ctx.fillStyle = "#d9dde0";
-            ctx.fill();
-          }
-          // Bumpers/lights and side sill.
-          rect(-58, 7, 104, 4, "#8e2028");
-          rect(59, -4, 7, 4, "#f2e3a1");
-          rect(-65, -1, 5, 4, "#b71f29");
-          rect(-20, 1, 43, 2, "#f06a6e");
-
-          // Tiny Starman in the driver's seat.
-          ctx.fillStyle = "#f2f3f4";
-          ctx.beginPath();
-          ctx.arc(7, -28, 6, 0, Math.PI * 2);
-          ctx.fill();
-          rect(2, -23, 11, 12, "#f2f3f4");
-          rect(4, -29, 7, 3, "#283847");
-          // Steering wheel hint.
-          ctx.strokeStyle = "#20262b";
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(20, -15, 5, 0, Math.PI * 2);
-          ctx.stroke();
-
-          ctx.restore();
-        }
         function drawShuttleExternalTank(dropState = null) {
           const attached = !dropState;
-          const tankX = attached ? PLANE_X - 9 : dropState.x;
-          const tankY = attached ? player.y + 18 : dropState.y;
+          const tankX = attached ? PLANE_X - 14 : dropState.x;
+          const tankY = attached ? player.y + 19 : dropState.y;
           ctx.save();
           ctx.translate(Math.round(tankX), Math.round(tankY));
           ctx.rotate(attached ? (player.pitch || 0) : dropState.spin);
-          // Orange shuttle external tank only: long curved nose, cylindrical body,
-          // tapered aft end, dark piping and retaining bands.
-          polygon([[-46, 0], [-37,-14], [18,-17], [44,-8], [52,1],
-                   [44,13], [18,18], [-37,15]], '#b96920');
-          polygon([[-42,-2], [-34,-11], [18,-12], [40,-5], [43,3],
-                   [18,11],[-35,10]], '#dc8730');
-          rect(-23, -13, 4, 26, '#a85d1b');
-          rect(22, -11, 4, 23, '#b36a23');
-          rect(-19, 8, 43, 3, '#e1a154');
+          // Dedicated sprite-style external tank so the Space sequence matches
+          // the shuttle's improved sprite treatment.
+          if (shuttleTankSprite.complete && shuttleTankSprite.naturalWidth) {
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(shuttleTankSprite, -70, -22, 140, 44);
+          } else {
+            polygon([[-45, 0], [-36,-12], [17,-14], [43,-7], [50,0], [43,11], [17,14], [-36,13]], '#c97424');
+            polygon([[-41,-1], [-33,-10], [18,-11], [39,-5], [42,2], [18,10], [-34,9]], '#e39a45');
+          }
           ctx.restore();
         }
         // World 1: Truist Park / The Battery with the TKE tower as the
@@ -4408,30 +4269,55 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           // After separation the orange tank continues falling while normal
           // Shuttle flight physics, obstacles, and player input are active.
           if (spaceBoosterDrop) {
+            // The detached external tank remains a distant, slowly falling
+            // object throughout insertion AND after playable flight begins.
+            // Keep the zero-G scene's gentle fall; never accelerate it with
+            // the legacy 0.12/frame Earth-gravity calculation.
             spaceBoosterDrop.age++;
             spaceBoosterDrop.y += spaceBoosterDrop.vy;
-            spaceBoosterDrop.vy = Math.min(7, spaceBoosterDrop.vy + 0.12);
-            spaceBoosterDrop.x -= 0.45;
-            spaceBoosterDrop.spin = Math.min(0.3, spaceBoosterDrop.spin + 0.003);
-            if (spaceBoosterDrop.y > H + 90) spaceBoosterDrop = null;
+            spaceBoosterDrop.vy = Math.min(0.35, spaceBoosterDrop.vy + 0.00045);
+            // Separate toward screen-right while gently tumbling nose-right.
+            // The tank keeps its intentionally slow downward drift.
+            spaceBoosterDrop.x += spaceBoosterDrop.vx;
+            spaceBoosterDrop.vx = Math.min(0.29, spaceBoosterDrop.vx + 0.0006);
+            // Keep turning gently after the immediate rightward tip.
+            spaceBoosterDrop.tilt = Math.min(0.42, spaceBoosterDrop.tilt + 0.003);
+            // Only remove it naturally when its entire scaled image leaves
+            // the visible world, not at an animation-stage boundary.
+            if (spaceBoosterDrop.y > H + 50 || spaceBoosterDrop.x - camera * 0.05 < -90)
+              spaceBoosterDrop = null;
           }
           if (state === "spaceLaunch") {
             takeoffFrames++;
-            // Hold the attached Shuttle and orange tank on screen for about
-            // 2.5 seconds before separation so players can see both clearly.
-            player.y = 295 - Math.min(20, takeoffFrames * 0.15);
-            player.pitch = -0.04;
-            if (takeoffFrames >= 150) {
+            // Four-stage, automatic orbital insertion: distant vertical stack,
+            // vertical tank release, shuttle ascent toward gameplay camera,
+            // and a nose-down RCS rotation into level flight.
+            // All coordinates are visual-only until launch finishes.
+            player.vy = 0;
+            camera = 0;
+            if (takeoffFrames === 128) {
+              // Spawn exactly where the vertical tank sat in the distant
+              // launch composition. It will persist into active gameplay.
               spaceBoosterDrop = {
-                x: PLANE_X - 17, y: player.y + 22,
-                vy: 1.2, spin: 0, age: 0
+                // An immediate downward/right separation impulse. The visible
+                // gap and rightward lean begin on the release frame itself.
+                x: PLANE_X - 53, y: 389 - 128 * 0.07 + 3,
+                vy: 0.27, vx: 0.26, tilt: 0.14, age: 0, distant: true
               };
+              setMessage("External tank separated — orbital insertion underway.");
+            }
+            if (takeoffFrames === 246) {
+              setMessage("Upper nose thruster firing — rotating to horizontal flight.");
+            }
+            if (takeoffFrames >= 361) {
+              player.y = 280;
+              player.pitch = 0;
+              player.vy = 0;
               state = "flying";
               spaceFlightFrames = 0;
-              spacePilotEngaged = false;
-              player.vy = 0;
-              camera = 0;
-              setMessage("External tank separated! Tap or click to take control of the Shuttle.");
+              // Control becomes available as soon as the shuttle levels out.
+              spacePilotEngaged = true;
+              setMessage("Orbital insertion complete! Hold to climb; release to descend.");
             }
             return;
           }
@@ -4569,7 +4455,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
                 rearY = 15.1;
               }
               if (plane.id === "p38") { rearX = 7; rearY = 18.6; }
-              if (plane.id === "shuttle") { rearX = -24 * plane.w / 112; rearY = 27 * plane.h / 48; }
+              if (plane.id === "shuttle") { rearX = -24 * plane.w / 112; rearY = 20.8 * plane.h / 48; }
               if (helicopterLanding) { rearX = 0; rearY = plane.h * 0.42; }
               const runwaySurface = isLunarLanding ? 461 : GROUND - 5;
               const projectedWheel = Math.sin(player.pitch) * rearX + Math.cos(player.pitch) * rearY;
@@ -4596,15 +4482,30 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           // has time to respond. Tapping immediately engages normal controls.
           const inSpace = getWorldConfig().id === "space";
           if (inSpace) spaceFlightFrames++;
-          if (inSpace && !spacePilotEngaged && spaceFlightFrames <= 240) {
+          if (inSpace && plane.id === "shuttle" && !spacePilotEngaged) {
             // Moving background and active obstacles: only vertical drift is
             // stabilized. This is not a delayed start or a frozen screen.
             player.vy = (280 - player.y) * 0.065;
             player.fallFrames = 0;
             player.pitch += (0 - (player.pitch || 0)) * 0.08;
+          } else if (inSpace && plane.id === "shuttle") {
+            // Space-world Shuttle only: zero gravity. Holding activates
+            // the lower nose RCS to accelerate upward; releasing activates
+            // the upper nose RCS continuously to accelerate downward.
+            // Lighter handling: upward response is brisker, while continuous
+            // upper-RCS descent builds speed more gently. No gravity is added.
+            // Both modes retain slight damping and capped vertical velocity.
+            const lowerRcsActive = climbHeld || spaceHeld;
+            player.vy *= 0.995;
+            if (lowerRcsActive) player.vy = Math.max(-3.0, player.vy - 0.16);
+            else player.vy = Math.min(2.35, player.vy + 0.085);
+            player.fallFrames = 0;
+            const targetPitch = lowerRcsActive ? -0.16 :
+              (player.vy > 0.18 ? Math.min(0.13, player.vy * 0.055) :
+              (player.vy < -0.18 ? -0.07 : 0));
+            player.pitch += (targetPitch - (player.pitch || 0)) * 0.12;
           } else {
-            // Hold-to-climb experiment: a sustained press supplies smooth lift;
-            // releasing returns to ordinary gravity. Short taps still use flap().
+            // Normal hold-to-climb and gravity for every other aircraft/level.
             player.vy = Math.min(7.3, player.vy + plane.gravity);
             if (climbHeld || spaceHeld) {
               player.vy = Math.max(-3.2, player.vy - 0.38);
@@ -5168,14 +5069,68 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           label(state==="lampreyDive"?"CLICK / TAP TO RISE":"AUTOPILOT ACTIVE",26,78,15,"#e1f0e7");
         }
 
+        // Fixed, distant ISS background art, with no collision or scrolling.
+        const issBackdropSprite = new Image();
+        issBackdropSprite.src = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20360%20172%22%20width%3D%22720%22%20height%3D%22320%22%3E%0A%3Cdefs%3E%3ClinearGradient%20id%3D%22steel%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23e2e1cf%22%2F%3E%3Cstop%20offset%3D%22.45%22%20stop-color%3D%22%23a2a7aa%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23585e69%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22panel%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23263a59%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%230b152a%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%0A%3C%21--%20International%20Space%20Station%20in%20front-facing%20silhouette%3A%20central%20truss%20and%20eight%20large%20dark%20array%20wings%20--%3E%0A%3Cg%20transform%3D%22translate%28180%2082%29%22%3E%0A%3C%21--%20left%2Fright%20principal%20structural%20truss%20--%3E%0A%3Crect%20x%3D%22-103%22%20y%3D%22-4%22%20width%3D%22206%22%20height%3D%228%22%20fill%3D%22%23999b9a%22%20stroke%3D%22%23d9d3b6%22%20stroke-width%3D%221%22%2F%3E%0A%3Cpath%20d%3D%22M-98%20-4%20L-86%204%20L-74%20-4%20L-62%204%20L-50%20-4%20L-38%204%20L-26%20-4%20L-14%204%20L0%20-4%20L14%204%20L26%20-4%20L38%204%20L50%20-4%20L62%204%20L74%20-4%20L86%204%20L98%20-4%22%20fill%3D%22none%22%20stroke%3D%22%23343e48%22%20stroke-width%3D%221.7%22%2F%3E%0A%3C%21--%20Solar%20arrays%20deliberately%20elongated%2C%20narrow%20rectangular%20wings%20based%20on%20ISS%20reference%20photographs.%20--%3E%0A%3Cg%20fill%3D%22url%28%23panel%29%22%20stroke%3D%22%2398866a%22%20stroke-width%3D%221.3%22%3E%0A%3Crect%20x%3D%22-165%22%20y%3D%22-78%22%20width%3D%2219%22%20height%3D%2278%22%2F%3E%3Crect%20x%3D%22-139%22%20y%3D%22-78%22%20width%3D%2219%22%20height%3D%2278%22%2F%3E%0A%3Crect%20x%3D%22-165%22%20y%3D%227%22%20width%3D%2219%22%20height%3D%2278%22%2F%3E%3Crect%20x%3D%22-139%22%20y%3D%227%22%20width%3D%2219%22%20height%3D%2278%22%2F%3E%0A%3Crect%20x%3D%22120%22%20y%3D%22-78%22%20width%3D%2219%22%20height%3D%2278%22%2F%3E%3Crect%20x%3D%22146%22%20y%3D%22-78%22%20width%3D%2219%22%20height%3D%2278%22%2F%3E%0A%3Crect%20x%3D%22120%22%20y%3D%227%22%20width%3D%2219%22%20height%3D%2278%22%2F%3E%3Crect%20x%3D%22146%22%20y%3D%227%22%20width%3D%2219%22%20height%3D%2278%22%2F%3E%0A%3C%2Fg%3E%0A%3C%21--%20Individual%20solar%20cell%20divisions%3A%20six%20visible%20rows%2C%20two%20cells%20across%20each%20tall%20panel.%20--%3E%0A%3Cg%20stroke%3D%22%23597397%22%20stroke-width%3D%22.7%22%20opacity%3D%22.88%22%3E%0A%3Cpath%20d%3D%22M-165%20-65%20H-146%20M-139%20-65%20H-120%20M120%20-65%20H139%20M146%20-65%20H165%0AM-165%20-52%20H-146%20M-139%20-52%20H-120%20M120%20-52%20H139%20M146%20-52%20H165%0AM-165%20-39%20H-146%20M-139%20-39%20H-120%20M120%20-39%20H139%20M146%20-39%20H165%0AM-165%20-26%20H-146%20M-139%20-26%20H-120%20M120%20-26%20H139%20M146%20-26%20H165%0AM-165%20-13%20H-146%20M-139%20-13%20H-120%20M120%20-13%20H139%20M146%20-13%20H165%0AM-165%2020%20H-146%20M-139%2020%20H-120%20M120%2020%20H139%20M146%2020%20H165%0AM-165%2033%20H-146%20M-139%2033%20H-120%20M120%2033%20H139%20M146%2033%20H165%0AM-165%2046%20H-146%20M-139%2046%20H-120%20M120%2046%20H139%20M146%2046%20H165%0AM-165%2059%20H-146%20M-139%2059%20H-120%20M120%2059%20H139%20M146%2059%20H165%0AM-165%2072%20H-146%20M-139%2072%20H-120%20M120%2072%20H139%20M146%2072%20H165%22%2F%3E%0A%3Cpath%20d%3D%22M-155.5%20-78%20V0%20M-129.5%20-78%20V0%20M129.5%20-78%20V0%20M155.5%20-78%20V0%0AM-155.5%207%20V85%20M-129.5%207%20V85%20M129.5%207%20V85%20M155.5%207%20V85%22%2F%3E%0A%3C%2Fg%3E%0A%3Cg%20fill%3D%22%23c2c4bd%22%20stroke%3D%22%234b5259%22%20stroke-width%3D%221%22%3E%0A%3Crect%20x%3D%22-102%22%20y%3D%22-11%22%20width%3D%2213%22%20height%3D%2220%22%2F%3E%3Crect%20x%3D%2289%22%20y%3D%22-11%22%20width%3D%2213%22%20height%3D%2220%22%2F%3E%0A%3C%2Fg%3E%0A%3C%21--%20white%20thermal%20radiator%20fins%20--%3E%0A%3Cg%20fill%3D%22%23d8ddd8%22%20stroke%3D%22%23a3aeb2%22%20stroke-width%3D%22.7%22%3E%0A%3Crect%20x%3D%22-60%22%20y%3D%2211%22%20width%3D%2214%22%20height%3D%2240%22%2F%3E%3Crect%20x%3D%22-43%22%20y%3D%2211%22%20width%3D%2214%22%20height%3D%2240%22%2F%3E%0A%3Crect%20x%3D%2229%22%20y%3D%2211%22%20width%3D%2214%22%20height%3D%2240%22%2F%3E%3Crect%20x%3D%2246%22%20y%3D%2211%22%20width%3D%2214%22%20height%3D%2240%22%2F%3E%0A%3C%2Fg%3E%0A%3Cg%20stroke%3D%22%23a0aaaf%22%20stroke-width%3D%22.6%22%3E%3Cpath%20d%3D%22M-60%2021%20H-29%20M-60%2031%20H-29%20M-60%2041%20H-29%20M29%2021%20H60%20M29%2031%20H60%20M29%2041%20H60%22%2F%3E%3C%2Fg%3E%0A%3C%21--%20central%20multi-module%20station%20cluster%20--%3E%0A%3Crect%20x%3D%22-18%22%20y%3D%22-16%22%20width%3D%2236%22%20height%3D%2224%22%20rx%3D%226%22%20fill%3D%22url%28%23steel%29%22%20stroke%3D%22%2341474b%22%20stroke-width%3D%221.4%22%2F%3E%0A%3Crect%20x%3D%22-31%22%20y%3D%22-13%22%20width%3D%2213%22%20height%3D%2217%22%20rx%3D%223%22%20fill%3D%22%23b5b6ae%22%20stroke%3D%22%2353585a%22%2F%3E%0A%3Crect%20x%3D%2218%22%20y%3D%22-12%22%20width%3D%2213%22%20height%3D%2217%22%20rx%3D%223%22%20fill%3D%22%23c0c4bb%22%20stroke%3D%22%2353585a%22%2F%3E%0A%3Cpath%20d%3D%22M-5%20-31%20L5%20-31%20L8%2018%20L-7%2018%20Z%22%20fill%3D%22url%28%23steel%29%22%20stroke%3D%22%2352585c%22%20stroke-width%3D%221.5%22%2F%3E%0A%3Crect%20x%3D%22-9%22%20y%3D%2218%22%20width%3D%2218%22%20height%3D%2226%22%20rx%3D%225%22%20fill%3D%22%23d0cdbd%22%20stroke%3D%22%23555f60%22%2F%3E%0A%3Crect%20x%3D%22-7%22%20y%3D%2244%22%20width%3D%2214%22%20height%3D%2221%22%20rx%3D%223%22%20fill%3D%22%239fa6a7%22%20stroke%3D%22%23485156%22%2F%3E%0A%3Ccircle%20cx%3D%220%22%20cy%3D%22-15%22%20r%3D%225%22%20fill%3D%22%23ede1bb%22%20stroke%3D%22%2380898a%22%2F%3E%0A%3C%21--%20radiator%20support%20booms%20and%20docking%20nodes%20--%3E%0A%3Cpath%20d%3D%22M-34%20-8%20L-48%20-24%20M34%20-8%20L49%20-25%20M-6%2058%20L-24%2074%20M7%2059%20L22%2072%22%20stroke%3D%22%23a3aba7%22%20stroke-width%3D%222%22%2F%3E%0A%3Cg%20fill%3D%22%23d5d3c4%22%20stroke%3D%22%236f7779%22%20stroke-width%3D%221%22%3E%3Ccircle%20cx%3D%22-48%22%20cy%3D%22-24%22%20r%3D%223%22%2F%3E%3Ccircle%20cx%3D%2249%22%20cy%3D%22-25%22%20r%3D%223%22%2F%3E%3Ccircle%20cx%3D%22-24%22%20cy%3D%2274%22%20r%3D%222.7%22%2F%3E%3Ccircle%20cx%3D%2222%22%20cy%3D%2272%22%20r%3D%222.7%22%2F%3E%3C%2Fg%3E%0A%3C%2Fg%3E%3C%2Fsvg%3E";
+        function drawSpaceISSBackdrop() {
+          if (getWorldConfig().id !== "space") return;
+          if (!issBackdropSprite.complete || !issBackdropSprite.naturalWidth) return;
+          ctx.save();
+          ctx.globalAlpha = 0.76;
+          ctx.imageSmoothingEnabled = true;
+          // Intentionally screen-anchored: the ISS stays in the distant background
+          // for the whole Space flight and can never be collided with.
+          ctx.drawImage(issBackdropSprite, 679.55, 29.525, 210.9, 103.95);
+          ctx.restore();
+        }
+
+        function drawSpaceInsertionSequence() {
+          const f = takeoffFrames;
+          const ease = (v) => { const a = Math.max(0, Math.min(1, v)); return a*a*(3-2*a); };
+          // Small, distant vehicle near Earth's limb first; subsequently the
+          // orbiter approaches the regular game position without moving the camera.
+          const approach = ease((f - 128) / 118);
+          const size = 0.37 + approach * 0.63;
+          const x = PLANE_X - 56 * (1-approach);
+          const y = 389 - approach * 109 - Math.min(f,128) * 0.07;
+          // Nose points straight up at first; top-side jet pitches nose down
+          // through a clockwise quarter turn when the shuttle reaches the HUD.
+          const rotation = -Math.PI / 2 + ease((f - 246) / 115) * Math.PI / 2;
+          // Tank stays vertical through separation, then drops independently.
+          if (f < 128) {
+            ctx.save(); ctx.translate(x,y); ctx.scale(size,size); ctx.rotate(-Math.PI/2);
+            if (shuttleTankSprite.complete && shuttleTankSprite.naturalWidth) {
+              ctx.imageSmoothingEnabled = false;
+              ctx.drawImage(shuttleTankSprite, -84, -1, 140, 44);
+            }
+            ctx.restore();
+          }
+          // The detached tank is drawn independently on every launch frame
+          // and on every gameplay frame; no f<230 cutoff to make it vanish.
+          ctx.save(); ctx.translate(x,y); ctx.scale(size,size);
+          drawPlane(0,0,plane,paint,rotation);
+          // Brief dedicated upper-nose jet during the scripted pitch-over,
+          // separate from the player's normal nose thrusters.
+          if (f >= 246 && f < 361) {
+            ctx.rotate(rotation);
+            ctx.fillStyle = "rgba(196,226,241,0.20)";
+            const jetLength = 12 + 5*Math.sin(f*0.42);
+            ctx.beginPath();
+            ctx.ellipse(57,-12,jetLength,2.5,-0.16,0,Math.PI*2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
         function draw() {
           if (state === "lampreyDive" || state === "lampreyAscend" || state === "lampreySurface" || state === "lampreyLaunch") {drawLampreyLevel();return;}
           const inverted = state === "upsideDown" || state === "upsideAscend";
           if (inverted) {ctx.save(); ctx.translate(0,H); ctx.scale(1,-1);}
           terrain();
           if (getWorldConfig().id === "space") {
+            drawSpaceISSBackdrop();
             drawLockheedShootingStar();
-            drawSpaceTesla();
+
           }
           for (const o of groundObstacles) {
             const sx = o.x - camera;
@@ -5230,9 +5185,20 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             ctx.restore();
           }
           const preview = state === "menu";
-          if (getWorldConfig().id === "space") {
-            if (state === "spaceLaunch") drawShuttleExternalTank();
-            else if (spaceBoosterDrop) drawShuttleExternalTank(spaceBoosterDrop);
+          if (getWorldConfig().id === "space" && spaceBoosterDrop) {
+            // Low-altitude tank remains small and vertical after separation.
+            // Light parallax once gameplay scrolls; it never becomes an obstacle.
+            ctx.save();
+            const tank = spaceBoosterDrop;
+            ctx.translate(tank.x - camera * 0.05, tank.y);
+            ctx.scale(0.37, 0.37);
+            // Starting vertically, tip clockwise toward the right as it falls.
+            ctx.rotate(-Math.PI / 2 + (tank.tilt || 0));
+            if (shuttleTankSprite.complete && shuttleTankSprite.naturalWidth) {
+              ctx.imageSmoothingEnabled = false;
+              ctx.drawImage(shuttleTankSprite, -84, -1, 140, 44);
+            }
+            ctx.restore();
           }
           // Animated takeoff exhaust: F-22, F-35 and F-16 only.
           // Draw behind the original plane artwork; no changes to aircraft sprites.
@@ -5252,7 +5218,8 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             }
             ctx.restore();
           }
-          if (inLamprey() && lampreyMode === "air") drawLampreyDrone(PLANE_X,preview ? 270 : player.y,preview ? 0 : player.pitch || 0);
+          if (state === "spaceLaunch") drawSpaceInsertionSequence();
+          else if (inLamprey() && lampreyMode === "air") drawLampreyDrone(PLANE_X,preview ? 270 : player.y,preview ? 0 : player.pitch || 0);
           else drawPlane(
             PLANE_X,
             preview ? 270 : player.y,
@@ -5381,67 +5348,31 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         const flightAction = document.getElementById("flightAction");
         const hudPlane = document.getElementById("hudPlane");
         const hudFill = document.getElementById("hudFill");
-        // Use pointerdown only on touch-first devices; preserve desktop click handling.
-        function bindTouchImmediate(button, action) {
-          let lastHandledPointer = -Infinity;
-          button.addEventListener("pointerdown", e => {
-            if (!window.matchMedia("(pointer: coarse)").matches || !e.isPrimary) return;
-            lastHandledPointer = performance.now();
-            e.preventDefault();
-            e.stopPropagation();
-            action();
-          });
-          button.addEventListener("click", e => {
-            if (performance.now() - lastHandledPointer < 650) {
-              lastHandledPointer = -Infinity;
-              e.preventDefault();
-              e.stopImmediatePropagation();
-              return;
-            }
-            action();
-          });
-          button.addEventListener("pointercancel", () => { lastHandledPointer = -Infinity; });
-        }
-        bindTouchImmediate(headerMenu, () => {
+        headerMenu.addEventListener("click", () => {
           openLandscapeMenu();
           headerMenu.setAttribute("aria-expanded", "true");
         });
         const legacyClose = closeLandscapeMenu;
         mobileMenuClose.addEventListener("click", () => headerMenu.setAttribute("aria-expanded", "false"));
         mobileMenuBackdrop.addEventListener("click", () => headerMenu.setAttribute("aria-expanded", "false"));
-        bindTouchImmediate(flightAction, () => startButton.click());
-        let lastMobileHudFrame = -Infinity;
-        let lastPlaneText = null;
-        let lastActionText = null;
-        let lastProgressAria = null;
-        let lastMenuExpanded = null;
-        function updateTopHUD(force = false) {
-          const mobile = window.matchMedia("(pointer: coarse)").matches;
-          if (mobile) {
-            const now = performance.now();
-            if (!force && now - lastMobileHudFrame < 50) return;
-            lastMobileHudFrame = now;
-          }
+        flightAction.addEventListener("click", () => startButton.click());
+        function updateTopHUD() {
           const activeId = inLamprey() ? "lampreyUAV" : (getWorldConfig().id === "space" ? "shuttle" : aircraftSelect.value);
-          const activePlane = activeId === "shuttle" ? "SPACE SHUTTLE" : (activeId === "blackhawk" ? (paint?.name === "NSDQ" ? "MH-60M Blackhawk" : "UH-60 Blackhawk") : (PLANES.find(p => p.id === activeId)?.name || (activeId === "lampreyUAV" ? "LAMPREY MMAUV" : aircraftSelect.selectedOptions[0]?.textContent || "AIRCRAFT")));
-          const planeText = activePlane.toUpperCase();
-          if (!mobile || planeText !== lastPlaneText) { hudPlane.textContent = planeText; lastPlaneText = planeText; }
+          const activePlane = activeId === "shuttle" ? `SPACE SHUTTLE ${paint?.name || "DISCOVERY"}` : (activeId === "blackhawk" ? (paint?.name === "NSDQ" ? "MH-60M Blackhawk" : "UH-60 Blackhawk") : (PLANES.find(p => p.id === activeId)?.name || (activeId === "lampreyUAV" ? "LAMPREY MMAUV" : aircraftSelect.selectedOptions[0]?.textContent || "AIRCRAFT")));
+          hudPlane.textContent = activePlane.toUpperCase();
           // Track the aircraft's actual traveled distance along the level, not
           // DOM layout or a second animation timer. The landing zone is the goal.
           const finishX = LANDING_RUNWAY_START;
           const traveled = Math.max(0, camera + PLANE_X);
           const progress = Math.max(0, Math.min(1, (traveled - PLANE_X) / Math.max(1, finishX - PLANE_X)));
           hudFill.style.transform = `scaleX(${progress.toFixed(5)})`;
-          const progressAria = String(Math.round(progress * 100));
-          if (!mobile || progressAria !== lastProgressAria) { hudFill.parentElement.setAttribute("aria-valuenow", progressAria); lastProgressAria = progressAria; }
+          hudFill.parentElement.setAttribute("aria-valuenow", String(Math.round(progress * 100)));
           const running = ["takeoff","spaceLaunch","flying","landing","upsideDown","upsideAscend","lampreyDive","lampreyAscend","lampreySurface","lampreyLaunch"].includes(state);
-          const actionText = running || state === "crashed" || state === "landed" ? "RESTART" : "FLY";
-          if (!mobile || actionText !== lastActionText) { flightAction.textContent = actionText; lastActionText = actionText; }
-          const expanded = String(mobileMenuOpen);
-          if (!mobile || expanded !== lastMenuExpanded) { headerMenu.setAttribute("aria-expanded", expanded); lastMenuExpanded = expanded; }
+          flightAction.textContent = running || state === "crashed" || state === "landed" ? "RESTART" : "FLY";
+          headerMenu.setAttribute("aria-expanded", String(mobileMenuOpen));
         }
-        aircraftSelect.addEventListener("change", () => updateTopHUD(true));
-        worldSelect.addEventListener("change", () => updateTopHUD(true));
+        aircraftSelect.addEventListener("change", updateTopHUD);
+        worldSelect.addEventListener("change", updateTopHUD);
         // Update the HUD once per game frame, including takeoff and landing.
         updateTopHUD();
         requestAnimationFrame(frame);
