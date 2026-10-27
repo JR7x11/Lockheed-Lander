@@ -3470,148 +3470,114 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           rect(sx-355,y-9,710,9,"#a7a7a0");
           for(let x=sx-335;x<sx+345;x+=56)rect(x,y-5,28,2,"#d7d2c5");
         }
+        // Offshore platforms: cached, hand-detailed pixel sprites. Gameplay geometry is unchanged.
+        const offshoreSpriteCache = new Map();
         function drawOffshorePlatform(sx, top, opts = {}) {
-          const night = !!opts.night;
-          const helipad = !!opts.helipad;
-          const sidePlatform = !!opts.sidePlatform;
-          const steel = night ? "#6f7c88" : "#90979d";
-          const steelMid = night ? "#53616c" : "#707880";
-          const steelDark = night ? "#2f3b45" : "#565d63";
-          const deck = night ? "#243441" : "#787d82";
-          const deckDark = night ? "#18242d" : "#52585d";
-          const cabin = night ? "#ddd6ca" : "#f0ece2";
-          const cabinShade = night ? "#bfb8ad" : "#d7d1c8";
-          const windowCol = night ? "#f1d68a" : "#b8d6e7";
-          const crane = night ? "#b76d3a" : "#cb7b42";
-          const tower = night ? "#677684" : "#808890";
-          const brace = night ? "#495761" : "#6d747b";
-          const pipe = night ? "#9ea7ad" : "#b8bec4";
-          const warning = night ? "#ffce69" : "#d97153";
-
-          const mastBaseY = top + 16;
-          const upperDeckY = top + 2;
-          const midDeckY = top + 18;
-          const lowerDeckY = top + 36;
-          const underDeckY = top + 56;
-          const cabinY = top - 26;
-          const bridgeY = top - 50;
-          const towerTop = top - 118;
-
-          // Layered decks / hull.
-          rect(sx - 96, upperDeckY, 192, 7, steelMid);
-          rect(sx - 90, midDeckY, 180, 12, deck);
-          rect(sx - 82, lowerDeckY, 164, 16, deckDark);
-          rect(sx - 74, underDeckY, 148, 9, steelDark);
-          rect(sx - 62, top - 6, 124, 24, steel);
-          rect(sx - 40, cabinY, 80, 24, cabin);
-          rect(sx - 20, bridgeY, 40, 18, cabinShade);
-
-          // Railings / catwalk edges.
-          for (let x = sx - 88; x <= sx + 82; x += 12) rect(x, upperDeckY - 4, 1, 5, pipe);
-          rect(sx - 88, upperDeckY - 2, 176, 2, pipe);
-          for (let x = sx - 76; x <= sx + 70; x += 13) rect(x, lowerDeckY - 4, 1, 4, pipe);
-          rect(sx - 76, lowerDeckY - 2, 152, 2, pipe);
-
-          // Main modules / windows.
-          rect(sx - 30, cabinY + 6, 16, 8, windowCol);
-          rect(sx - 10, cabinY + 6, 16, 8, windowCol);
-          rect(sx + 10, cabinY + 6, 16, 8, windowCol);
-          rect(sx - 13, bridgeY + 5, 10, 6, windowCol);
-          rect(sx + 3, bridgeY + 5, 10, 6, windowCol);
-          rect(sx - 48, top + 2, 20, 8, windowCol);
-          rect(sx - 20, top + 2, 16, 8, windowCol);
-          rect(sx + 6, top + 2, 16, 8, windowCol);
-          rect(sx + 30, top + 2, 18, 8, windowCol);
-
-          // Pipes / tanks / exhausts.
-          rect(sx - 56, cabinY + 2, 7, 32, steelMid);
-          rect(sx - 54, cabinY - 8, 3, 10, steelDark);
-          rect(sx + 49, cabinY + 2, 7, 32, steelMid);
-          rect(sx + 51, cabinY - 8, 3, 10, steelDark);
-          rect(sx + 60, top - 8, 10, 20, steelMid);
-          rect(sx + 62, top - 16, 6, 9, steelDark);
-          rect(sx - 70, top + 28, 22, 8, pipe);
-          rect(sx - 44, top + 28, 24, 8, pipe);
-
-          // Support legs.
-          for (const lx of [-50, -18, 18, 50]) {
-            rect(sx + lx - 5, underDeckY + 9, 10, GROUND - (underDeckY + 9), steelDark);
+          const night = !!opts.night, helipad = !!opts.helipad, sidePlatform = !!opts.sidePlatform;
+          const legHeight = Math.max(75, Math.ceil(GROUND - top));
+          const key = `${night}-${helipad}-${sidePlatform}-${legHeight}`;
+          let sprite = offshoreSpriteCache.get(key);
+          if (!sprite) {
+            const off = document.createElement('canvas');
+            const WIDTH = 330, OFFSET = 158;
+            off.width = WIDTH; off.height = OFFSET + legHeight + 5;
+            const p = off.getContext('2d'); p.imageSmoothingEnabled = false;
+            const c = night ? {edge:'#101e2d',shadow:'#283b4c',base:'#536777',lit:'#82939b',bright:'#aab6b5',deck:'#344652',wall:'#71828c',highlight:'#b5b7ac',glass:'#efbc64',glass2:'#ffde8a',orange:'#d5773b',warning:'#faaf55',sea:'#244657'} : {edge:'#293746',shadow:'#4c606d',base:'#7c8991',lit:'#a5adb0',bright:'#d1d3c9',deck:'#596873',wall:'#b8c1be',highlight:'#e2d9c7',glass:'#8bb8c5',glass2:'#c6dce0',orange:'#c3804a',warning:'#f3b15d',sea:'#5b8894'};
+            const R=(x,y,w,h,color)=>{p.fillStyle=color;p.fillRect(Math.round(x+165),Math.round(y+OFFSET),Math.round(w),Math.round(h));};
+            const L=(x1,y1,x2,y2,color,width=1)=>{p.strokeStyle=color;p.lineWidth=width;p.beginPath();p.moveTo(Math.round(x1+165)+.5,Math.round(y1+OFFSET)+.5);p.lineTo(Math.round(x2+165)+.5,Math.round(y2+OFFSET)+.5);p.stroke();};
+            // Four deep-water jacket legs with alternating beams and open lattice voids.
+            for(const x of [-61,-27,27,61]){ R(x-6,63,13,legHeight-57,c.edge);R(x-4,63,8,legHeight-57,c.base);R(x-3,64,2,legHeight-60,c.lit); }
+            for(let y=71;y<legHeight-7;y+=24){
+              for(const [a,b] of [[-61,-27],[-27,27],[27,61]]){
+                L(a,y,b,y+22,c.shadow,4);L(a,y+22,b,y,c.lit,2);
+              }
+              R(-68,y,136,3,c.shadow);R(-67,y,134,1,c.bright);
+              for(const x of [-61,-27,27,61])R(x-5,y-2,10,4,c.edge);
+            }
+            // Upper-level bracing and lower mechanical catwalks.
+            R(-79,58,158,8,c.edge);R(-75,58,150,4,c.base);
+            R(-83,36,166,13,c.edge);R(-78,35,156,8,c.deck);R(-77,35,155,2,c.lit);
+            for(let x=-73;x<75;x+=14){R(x,48,2,11,c.base);R(x,56,9,2,c.lit);}
+            // Main platform: exposed stepped deck, gantry edges, handrails.
+            R(-101,10,202,10,c.edge);R(-98,8,196,8,c.base);R(-94,8,190,3,c.bright);
+            R(-93,20,186,16,c.shadow);R(-89,20,178,4,c.lit);
+            R(-84,31,168,8,c.edge);R(-80,32,160,3,c.base);
+            for(let x=-95;x<=94;x+=9){R(x,0,2,9,c.lit);R(x,-1,4,2,c.bright);}
+            R(-96,-2,192,2,c.bright);
+            // Heavy box modules, mezzanine rooms and side-profile windows.
+            for(const [x,y,w,h] of [[-69,-35,55,43],[-12,-57,42,65],[35,-30,47,38],[-41,-78,56,21]]){
+              R(x-2,y-2,w+4,h+4,c.edge);R(x,y,w,h,c.wall);R(x+3,y+3,w-7,3,c.highlight);
+              R(x+w-7,y+5,5,h-8,c.shadow);R(x+1,y+h-5,w-3,4,c.base);
+              for(let wx=x+6;wx<x+w-10;wx+=13){R(wx,y+11,8,8,c.edge);R(wx+1,y+12,6,5,c.glass);R(wx+1,y+12,4,2,c.glass2);}
+              R(x+5,y+h-12,Math.max(4,w-17),2,c.base);
+            }
+            // Pipes, exhausts, pumps, tanks and industrial service equipment.
+            for(const x of [-88,-77,66,78]){R(x,-35,5,39,c.shadow);R(x+1,-42,3,8,c.lit);R(x+1,-44,3,2,c.edge);}
+            for(let x=-80;x<80;x+=20){R(x,23,12,7,c.base);R(x+2,24,8,2,c.lit);}
+            for(const x of [-49,-14,30,55]){R(x,41,15,8,c.base);R(x+2,42,11,2,c.bright);}
+            // Derrick: tall tapering steel truss, not a filled triangle.
+            L(-17,7,-4,-133,c.edge,5);L(18,7,4,-133,c.edge,5);
+            L(-16,7,-4,-133,c.lit,2);L(16,7,4,-133,c.lit,2);
+            R(-7,-142,14,10,c.edge);R(-5,-140,10,5,c.warning);
+            R(-13,3,27,6,c.edge);R(-11,2,23,3,c.bright);
+            for(let y=-126;y<5;y+=11){
+              const spread=5+(y+133)/11;
+              L(-spread,y,spread,y,c.bright,2);
+              L(-spread,y,spread,y+10,c.shadow,2);
+              L(spread,y,-spread,y+10,c.base,2);
+            }
+            R(-2,-132,4,134,c.edge);R(-1,-128,2,120,c.lit);
+            // Lift crane booms have perforated lattice and hanging cable/hoist.
+            const crane=(x,y,endX,endY)=>{
+              R(x-4,y-4,9,26,c.edge);R(x-2,y-6,5,20,c.base);
+              L(x,y,endX,endY,c.edge,8);L(x,y-2,endX,endY-2,c.orange,4);
+              for(let i=1;i<7;i++){const t=i/7, bx=x+(endX-x)*t,by=y+(endY-y)*t;L(bx,by-4,bx+5,by+4,c.warning,1);}
+              L(endX,endY,endX,endY+25,c.bright,1);R(endX-4,endY+24,8,5,c.edge);R(endX-3,endY+25,6,2,c.warning);
+            };
+            crane(-56,-28,-111,-78);crane(67,-8,121,-37);
+            R(29,-36,6,37,c.edge);L(32,-33,59,-51,c.orange,4);
+            // Fuel vessels and deck piping.
+            for(const x of [-61,47]){R(x,15,17,8,c.edge);R(x+2,15,13,6,c.lit);R(x+4,16,8,2,c.bright);}
+            for(let x=-82;x<85;x+=21){R(x,12,7,3,c.warning);}
+            // Strong but small light fixtures: sprite lighting, not canvas glow effects.
+            if(night){for(const [x,y] of [[-89,7],[-63,-39],[-35,-79],[26,-59],[78,-32],[92,8]]){
+              R(x-2,y-2,6,6,c.edge);R(x,y,3,3,c.glass2);R(x-3,y+4,9,1,c.orange);
+            }}
+            // First rig's original left landing pad remains at the original location.
+            if(helipad){
+              R(-135,10,68,10,c.edge);R(-131,7,60,5,c.base);R(-128,6,54,2,c.bright);
+              R(-114,20,5,28,c.shadow);R(-78,20,5,27,c.shadow);
+              for(let x=-129;x<-72;x+=9)R(x,2,2,5,c.bright);
+              p.font='bold 14px monospace';p.textAlign='center';p.fillStyle=c.glass2;p.fillText('H',-101+165,5+OFFSET);
+            }
+            if(sidePlatform){
+              R(77,22,88,10,c.edge);R(82,19,78,5,c.base);R(85,18,72,2,c.bright);
+              for(const x of [93,145])R(x,32,7,29,c.shadow);
+              for(let x=83;x<160;x+=10)R(x,14,2,5,c.bright);
+              p.font='bold 14px monospace';p.textAlign='center';p.fillStyle=c.glass2;p.fillText('H',119+165,18+OFFSET);
+            }
+            // Gulf branding on a bolted lower front fascia.
+            if(night){
+              R(-70,66,140,16,c.edge);R(-67,67,134,11,'#24465b');R(-67,67,134,2,c.orange);
+              p.font='bold 11px monospace';p.textAlign='center';p.fillStyle='#f5e4c6';p.fillText('G U L F',165,77+OFFSET);
+              for(const x of [-53,-26,27,54]){R(x,78,5,3,c.warning);}
+            }
+            sprite=off;offshoreSpriteCache.set(key,sprite);
           }
-
-          // Cross bracing on legs.
-          for (const by of [underDeckY + 22, underDeckY + 48, underDeckY + 74, underDeckY + 100]) {
-            polygon([[sx - 54, by], [sx - 14, by - 18], [sx - 10, by - 14], [sx - 50, by + 4]], brace);
-            polygon([[sx - 22, by - 18], [sx + 18, by], [sx + 14, by + 4], [sx - 26, by - 14]], brace);
-            polygon([[sx + 10, by], [sx + 50, by - 18], [sx + 46, by - 14], [sx + 6, by + 4]], brace);
-          }
-
-          // Under-deck catwalk and braces.
-          rect(sx - 72, underDeckY + 10, 144, 4, deck);
-          for (let x = sx - 64; x <= sx + 56; x += 18) rect(x, underDeckY + 14, 2, 10, brace);
-
-          // Main drilling tower with more lattice detail.
-          polygon([[sx - 12, mastBaseY], [sx + 4, towerTop], [sx + 20, mastBaseY]], tower);
-          rect(sx + 3, towerTop - 8, 4, mastBaseY - towerTop + 9, steelDark);
-          for (let i = 0; i < 7; i++) {
-            const y = towerTop + 10 + i * 18;
-            rect(sx - 4, y, 16, 2, brace);
-            polygon([[sx - 8, y + 2], [sx + 3, y + 12], [sx + 6, y + 12], [sx - 5, y + 2]], brace);
-            polygon([[sx + 14, y + 2], [sx + 5, y + 12], [sx + 2, y + 12], [sx + 11, y + 2]], brace);
-          }
-          rect(sx + 1, towerTop - 14, 8, 6, warning);
-
-          // Left crane.
-          rect(sx - 34, top - 20, 5, 34, steelDark);
-          polygon([[sx - 32, top - 16], [sx - 72, top - 48], [sx - 68, top - 44], [sx - 28, top - 12]], crane);
-          rect(sx - 71, top - 45, 2, 18, warning);
-          rect(sx - 72, top - 27, 7, 3, warning);
-
-          // Right crane.
-          rect(sx + 53, top - 4, 5, 36, steelDark);
-          polygon([[sx + 57, top], [sx + 108, top - 22], [sx + 112, top - 18], [sx + 61, top + 4]], crane);
-          rect(sx + 106, top - 16, 2, 18, warning);
-          rect(sx + 100, top - 1, 10, 3, warning);
-
-          // Additional small crane / jib for denser industrial feel.
-          rect(sx + 12, top - 14, 4, 18, steelDark);
-          polygon([[sx + 14, top - 12], [sx + 42, top - 24], [sx + 45, top - 21], [sx + 17, top - 9]], crane);
-
-          // Small deck details.
-          for (const px of [-52, -30, -8, 14, 36]) rect(sx + px, lowerDeckY + 4, 10, 5, steelMid);
-          rect(sx - 58, midDeckY + 5, 18, 6, cabinShade);
-          rect(sx + 38, midDeckY + 5, 20, 6, cabinShade);
-          rect(sx - 10, midDeckY + 3, 22, 8, pipe);
-
-          // Optional helipad on the first night rig.
-          if (helipad) {
-            rect(sx - 132, top + 18, 66, 8, steelDark);
-            rect(sx - 126, top + 11, 54, 6, steel);
-            rect(sx - 108, top + 2, 16, 24, steelMid);
-            rect(sx - 102, top + 14, 2, 10, windowCol);
-            rect(sx - 111, top + 9, 22, 18, steel);
-            rect(sx - 100, top + 17, 2, 14, "#ffffff");
-            rect(sx - 107, top + 24, 16, 2, "#ffffff");
-            label("H", sx - 99, top + 25, 13, "#ffffff", "center");
-          }
-
-          // Optional side platform / helipad for helicopter takeoff rig.
-          if (sidePlatform) {
-            rect(sx + 74, top + 26, 86, 8, steelDark);
-            rect(sx + 80, top + 20, 74, 5, steel);
-            rect(sx + 88, top + 34, 6, 24, steelDark);
-            rect(sx + 140, top + 34, 6, 24, steelDark);
-            rect(sx + 102, top + 12, 24, 21, steel);
-            rect(sx + 114, top + 14, 2, 16, "#ffffff");
-            rect(sx + 106, top + 22, 18, 2, "#ffffff");
-            label("H", sx + 114, top + 28, 12, "#ffffff", "center");
-          }
-
-          // Night branding / lit lower strip.
-          if (night) {
-            rect(sx - 64, top + 74, 128, 7, "#13344c");
-            rect(sx - 64, top + 74, 128, 2, "#ef8f34");
-            label("GULF", sx, top + 88, 11, "#ffffff", "center");
-            for (const lx of [-44, -20, 4, 28]) rect(sx + lx, top + 46, 10, 6, "#ffd477");
+          ctx.drawImage(sprite, Math.round(sx-165), Math.round(top-158));
+          // Offshore obstruction beacon: positioned above the derrick crown,
+          // animated independently of the cached platform sprite.
+          const bx = Math.round(sx), by = Math.round(top - 148);
+          const beaconOn = ((performance.now() * 0.001 + sx * 0.00013) % 1.7) < 0.72;
+          ctx.fillStyle = '#202b35';
+          ctx.fillRect(bx - 2, by + 4, 5, 7); // fixed short mast
+          ctx.fillStyle = beaconOn ? '#ff3442' : '#632731';
+          ctx.fillRect(bx - 3, by, 7, 5);
+          if (beaconOn) {
+            ctx.fillStyle = '#ffd2c6';
+            ctx.fillRect(bx - 1, by + 1, 3, 2);
+            ctx.fillStyle = 'rgba(255, 55, 65, 0.19)';
+            ctx.fillRect(bx - 7, by - 4, 15, 13);
           }
         }
 
