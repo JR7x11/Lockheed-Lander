@@ -795,13 +795,13 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
                     : PAINTS;
         const ORIGINAL_IDS = ["c130", "f35", "c5", "blackhawk", "f16", "f22"];
         const PLANES = [
-          {id:"p38",name:"P-38 Lightning",speed:4.2,lift:-6.0,gravity:0.27,w:108,h:40,score:4},
+          {id:"p38",name:"P-38 Lightning",speed:4.41,lift:-6.0,gravity:0.27,w:108,h:40,score:4},
           {id:"electra",name:"Model 10-E Electra",speed:3.25,lift:-5.65,gravity:0.275,w:100,h:41,score:4},
           {id:"vega",name:"Lockheed Vega",speed:3.12,lift:-5.58,gravity:0.275,w:106,h:42,score:4},
           {
             id: "c130",
             name: "C-130",
-            speed: 3.55,
+            speed: 3.7275,
             lift: -5.65,
             gravity: 0.28,
             w: 120,
@@ -811,7 +811,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           {
             id: "f35",
             name: "F-35",
-            speed: 4.95,
+            speed: 5.445,
             lift: -6.1,
             gravity: 0.25,
             w: 76,
@@ -821,7 +821,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           {
             id: "c5",
             name: "C-5",
-            speed: 4.45,
+            speed: 4.7615,
             lift: -5.1,
             gravity: 0.27,
             w: 190,
@@ -831,7 +831,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           {
             id: "blackhawk",
             name: "UH-60 Blackhawk",
-            speed: 4.25,
+            speed: 4.4625,
             lift: -6.35,
             gravity: 0.33,
             w: 78,
@@ -841,7 +841,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           {
             id: "f16",
             name: "F-16",
-            speed: 5.75,
+            speed: 6.3825,
             lift: -6.2,
             gravity: 0.265,
             w: 87,
@@ -851,7 +851,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           {
             id: "f22",
             name: "F-22",
-            speed: 6.45,
+            speed: 6.7725,
             lift: -6.3,
             gravity: 0.275,
             w: 81,
@@ -1111,6 +1111,49 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         let spaceFlightFrames = 0;
         let spacePilotEngaged = false;
         let helicopterTick = 0;
+        // Marietta blimp/TKE jet boost: one activation per flight.
+        let atlantaBoostArmed = false;
+        let atlantaBoostUsed = false;
+        let atlantaBoostFrames = 0;
+        let atlantaBoostFactor = 1;
+        const ATLANTA_BOOST_JETS = new Set(["f16", "f35", "f22", "sr71"]);
+        function updateAtlantaBoost() {
+          if (getWorldConfig().id !== "darb" || !ATLANTA_BOOST_JETS.has(plane.id) || state !== "flying") {
+            atlantaBoostFrames = 0;
+            atlantaBoostFactor = 1;
+            return;
+          }
+          const blimp = airObstacles.find(a => a.type === "blimp");
+          const landmark = groundObstacles.find(o => o.type === "truistTke");
+          if (!blimp || !landmark) return;
+          const worldX = camera + PLANE_X;
+          // Arm on the low approach beneath the blimp. The blimp and TKE
+          // landmark share a tight horizontal span, so a frame-perfect
+          // altitude crossing near the tower is not a reliable trigger.
+          if (!atlantaBoostUsed && !atlantaBoostArmed &&
+              worldX >= blimp.x - 160 && worldX <= blimp.x + 105 &&
+              player.y >= blimp.y + blimp.height * .5 + plane.h * .3) {
+            atlantaBoostArmed = true;
+          }
+          // Trigger while climbing past the blimp's forward/right side
+          // toward the TKE gap. Allows the crossing to occur over multiple
+          // frames even with the higher jet speeds.
+          if (!atlantaBoostUsed && atlantaBoostArmed &&
+              worldX >= blimp.x + 45 && worldX <= landmark.x + 205 &&
+              player.y < blimp.y + 45 && player.vy < -0.12) {
+            atlantaBoostUsed = true;
+            atlantaBoostFrames = 115;
+            setMessage("ATLANTA BOOST! Afterburners engaged — +30% airspeed!");
+          }
+          // Fast onset and smooth return to baseline after the brief boost.
+          if (atlantaBoostFrames > 0) {
+            const remaining = atlantaBoostFrames--;
+            const blend = Math.min(1, (116 - remaining) / 8, remaining / 36);
+            atlantaBoostFactor = 1 + .30 * Math.max(0, blend);
+          } else {
+            atlantaBoostFactor = 1;
+          }
+        }
         let groundObstacles = [];
         let airObstacles = makeAirObstacles();
         let worldLandmark = null;
@@ -1329,11 +1372,22 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               height: world.id === "darb" && slot === 6 ? 34 : type === "lightplane" ? 32 : 28,
             };
           });
-          // Three small Cessnas patrol the high corridor BEFORE the first approach ring.
+          // Keep ordinary roaming Cessnas out of the two dedicated approach Cessnas'
+          // patrol envelope. Their long (165px) bidirectional paths previously
+          // intersected the short (24px) approach paths, making aircraft overlap.
+          // Apply in every normal flight world; preserve all other obstacle types.
+          const approachCessnaCenters = [RUNWAY_X - 1850, RUNWAY_X - 1430];
+          for (let i = aircraft.length - 1; i >= 0; i--) {
+            const a = aircraft[i];
+            if (a.type === "lightplane" && approachCessnaCenters.some(
+              center => Math.abs(a.x - center) < 165 + 24 + 80
+            )) aircraft.splice(i, 1);
+          }
+          // Two small Cessnas patrol the high corridor BEFORE the first approach ring.
+          // Middle aircraft removed across all normal levels to reduce crowding.
           // Low-altitude approach remains completely open; reuse existing Cessna art.
           for (const [offset, altitude, scheme, phase] of [
             [1850, 88, 0, 0],
-            [1640, 135, 1, 1.9],
             [1430, 103, 0, 3.8],
           ]) {
             aircraft.push({
@@ -1501,6 +1555,10 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           spaceFlightFrames = 0;
           spacePilotEngaged = false;
           helicopterTick = 0;
+          atlantaBoostArmed = false;
+          atlantaBoostUsed = false;
+          atlantaBoostFrames = 0;
+          atlantaBoostFactor = 1;
           airObstacles = makeAirObstacles();
           if (inLamprey()) {
             lampreyMode = "dive"; lampreyTimer = 0; lampreyScroll = 0;
@@ -4117,7 +4175,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
                  a.x = a.baseX;
                  a.y = a.baseY + 66 * Math.sin(helicopterTick * 0.018 + a.patrolPhase);
                } else {
-                 // Keep all three Cessnas for the C-130 and C-5.
+                 // Keep the same two Cessnas for the C-130 and C-5.
                  a.type = "lightplane";
                  a.width = 60;
                  a.height = 28;
@@ -4498,7 +4556,8 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             if (Math.abs(player.pitch - targetPitch) < 0.001) player.pitch = targetPitch;
           }
           player.y += player.vy;
-          camera += plane.speed * worldSpeedMultiplier();
+          updateAtlantaBoost();
+          camera += plane.speed * worldSpeedMultiplier() * atlantaBoostFactor;
           // Test: slimmer, forgiving flight collision footprint for every aircraft.
           const halfW = plane.w * (plane.id === "f16" ? 0.31 : 0.36),
             halfH = plane.h * (plane.id === "f16" ? 0.32 : 0.37);
@@ -4705,7 +4764,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             // Kept for the original runway landing-trigger calculation.
             const planeCenterX = camera + PLANE_X;
             const noseOffset = plane.w * 0.38;
-            const travel = plane.speed * worldSpeedMultiplier();
+            const travel = plane.speed * worldSpeedMultiplier() * atlantaBoostFactor;
             const noseX = camera + PLANE_X + noseOffset;
             const previousNoseX = noseX - travel;
             const previousY = player.y - player.vy;
@@ -5243,17 +5302,18 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             }
             ctx.restore();
           }
-          // Animated takeoff exhaust: F-22, F-35 and F-16 only.
-          // Draw behind the original plane artwork; no changes to aircraft sprites.
-          if (state === "takeoff" && ["f22", "f35", "f16"].includes(plane.id)) {
-            const pulse = takeoffFrames;
-            const power = Math.min(1, (pulse + 8) / 32);
+          // Standard takeoff jets, plus temporary Atlanta boost flames.
+          // Draw behind aircraft artwork; preserve the corrected F-16 offset.
+          const atlantaFlames = state === "flying" && atlantaBoostFactor > 1.005;
+          if ((state === "takeoff" && ["f22", "f35", "f16"].includes(plane.id)) || atlantaFlames) {
+            const pulse = atlantaFlames ? atlantaBoostFrames : takeoffFrames;
+            const power = atlantaFlames ? Math.min(1, (atlantaBoostFactor - 1) / .24) : Math.min(1, (pulse + 8) / 32);
             const length = (19 + (pulse % 6) * 2 + Math.sin(pulse * 0.41) * 4) * power;
             const rearX = -plane.w * (plane.id === "f16" ? 0.46 : 0.48);
             ctx.save();
             ctx.translate(Math.round(PLANE_X), Math.round(player.y));
             ctx.rotate(player.pitch || 0);
-            const engines = plane.id === "f22" ? [-3.2, 3.2] : [0];
+            const engines = plane.id === "f22" ? [-3.2, 3.2] : [plane.id === "f16" ? -3 : 0];
             for (const engineY of engines) {
               polygon([[rearX + 3, engineY - 4], [rearX - length, engineY], [rearX + 3, engineY + 4]], "#f1782e");
               polygon([[rearX + 1, engineY - 2.5], [rearX - length * 0.76, engineY], [rearX + 1, engineY + 2.5]], "#ffd05d");
