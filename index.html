@@ -410,7 +410,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               <option value="vega" disabled>Lockheed Vega — ???</option>
               <option value="lampreyUAV" disabled>Lamprey MMAUV</option>
               <option value="sr71" disabled>
-                SR-71 — land all six to unlock
+                SR-71
               </option>
             </select></label
           >
@@ -1092,6 +1092,11 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         let takeoffFrames = 0;
         // Three consecutive final-approach checkpoints, ahead of the runway.
         // Center-point checks work fairly for large aircraft such as the C-5.
+        // Night Ocean carrier landing is 43px above the standard runway.
+        // Physics and every other world's landing zone remain unchanged.
+        const CARRIER_DECK_Y = GROUND - 48;
+        const landingSurfaceY = () => getWorldConfig().id === "night" ? CARRIER_DECK_Y : GROUND - 5;
+        const landingGateY = (ring) => ring.y - (getWorldConfig().id === "night" ? 43 : 0);
         const APPROACH_RINGS = [
           {x:RUNWAY_X-1190, y:GROUND-126},
           {x:RUNWAY_X-965, y:GROUND-104},
@@ -1475,16 +1480,22 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           sr71Option.disabled = !ready;
           sr71Option.textContent = ready
             ? "SR-71"
-            : "SR-71 — land all six to unlock";
+            : "SR-71";
           let shuttleOption = aircraftSelect.querySelector('option[value="shuttle"]');
-          if (!shuttleOption) {
-            shuttleOption = document.createElement("option");
-            shuttleOption.value = "shuttle";
-            aircraftSelect.appendChild(shuttleOption);
+          const shuttleUnlocked = DEV_SPACE_TEST || isSpaceUnlocked();
+          if (!shuttleUnlocked) {
+            // Keep the secret aircraft completely absent until its achievement unlocks.
+            if (shuttleOption) shuttleOption.remove();
+          } else {
+            if (!shuttleOption) {
+              shuttleOption = document.createElement("option");
+              shuttleOption.value = "shuttle";
+              aircraftSelect.appendChild(shuttleOption);
+            }
+            shuttleOption.disabled = false;
+            shuttleOption.hidden = getWorldConfig().id === "space";
+            shuttleOption.textContent = "Space Shuttle Discovery";
           }
-          shuttleOption.disabled = !(DEV_SPACE_TEST || isSpaceUnlocked());
-          shuttleOption.hidden = getWorldConfig().id === "space";
-          shuttleOption.textContent = shuttleOption.disabled ? "Space Shuttle — unlock Space first" : "Space Shuttle Discovery";
         }
         function updateWorldControlState() {
           const activeFlight = ["spaceLaunch", "takeoff", "flying", "landing"].includes(state);
@@ -4029,6 +4040,173 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             }
           }
         }
+        // Night Ocean carrier: cached side-on sprite; red underwater hull intentionally
+        // omitted. The black boot-top/waterline sits at the existing sea surface.
+        let nightCarrierSprite = null;
+        function drawNightCarrier() {
+          const left = LANDING_RUNWAY_START - camera;
+          const length = LANDING_RUNWAY_END - LANDING_RUNWAY_START;
+          if (left > W + 20 || left + length < -20) return;
+          if (!nightCarrierSprite) {
+            const c = document.createElement("canvas");
+            c.width = length; c.height = 264;
+            const q = c.getContext("2d");
+            q.translate(0,90);
+            q.imageSmoothingEnabled = false;
+            const R = (x,y,w,h,col) => {q.fillStyle=col;q.fillRect(x,y,w,h);};
+            const P = (pts,col) => {q.fillStyle=col;q.beginPath();q.moveTo(...pts[0]);for(let i=1;i<pts.length;i++)q.lineTo(...pts[i]);q.closePath();q.fill();};
+            // Deck surface at sprite y=122, world y=GROUND-48.
+            // Slightly upturned bow and tapered stern; deck remains physically flat.
+            P([[2,122],[56,115],[length-80,115],[length-3,122],[length-21,129],[45,129]],"#a3adb5");
+            R(50,123,length-115,5,"#283a4b");
+            R(54,129,length-120,4,"#141f2a");
+            P([[38,132],[length-60,132],[length-90,159],[length-175,169],[135,169],[66,156]],"#687986");
+            P([[74,139],[length-83,139],[length-113,163],[131,163]],"#4d606e");
+            // Broad dark waterline at y=169; nothing red/submerged is drawn.
+            R(133,165,length-307,5,"#142532");
+            for(let i=0;i<34;i++){
+              let x=130+i*74;
+              R(x,141,40,10,"#243746");R(x+3,143,33,5,"#151f2b");
+              R(x,156,12,2,"#899aa4");
+            }
+            // Horizontal sponsons and safety net visible in side elevation.
+            R(60,133,length-125,2,"#b1bec4");
+            for(let x=95;x<length-70;x+=47)R(x,130,2,9,"#aab6bf");
+            // Detailed cached sprite island: layered steel plates, shadowed walkways,
+            // stepped bridge wings, separate windows, antennas and radar assemblies.
+            const ix=900;
+            const line=(x1,y1,x2,y2,color,w=1)=>{q.strokeStyle=color;q.lineWidth=w;q.beginPath();q.moveTo(x1+.5,y1+.5);q.lineTo(x2+.5,y2+.5);q.stroke();};
+            // Island's funnel and rear equipment bay, behind the bridge.
+            P([[ix+84,111],[ix+90,82],[ix+123,81],[ix+132,110]],"#394c5b");
+            P([[ix+93,84],[ix+98,52],[ix+113,52],[ix+119,84]],"#4d626f");
+            R(ix+96,48,18,5,"#263a47");R(ix+97,47,16,2,"#95a6ad");
+            R(ix+128,89,11,24,"#728693");R(ix+133,84,3,5,"#c0cbd0");
+            // Asymmetric hull of the tower; forward face is stepped, not triangular.
+            P([[ix-18,116],[ix-17,102],[ix-7,102],[ix-7,84],[ix+5,84],
+               [ix+5,67],[ix+18,67],[ix+18,54],[ix+107,54],[ix+107,76],
+               [ix+129,76],[ix+135,116]],"#526575");
+            P([[ix-10,111],[ix-8,87],[ix+8,87],[ix+8,72],[ix+21,72],
+               [ix+21,56],[ix+34,56],[ix+34,113]],"#8b9da7");
+            R(ix+40,62,63,52,"#465b6b");R(ix+106,79,19,34,"#354957");
+            // Panel seams, service doors, ventilation gratings and ladders.
+            for(let y=84;y<110;y+=7){line(ix+40,y,ix+102,y,"#627989");line(ix+108,y,ix+124,y,"#6f8591");}
+            for(let x=49;x<99;x+=16)line(ix+x,82,ix+x,109,"#3c5260");
+            R(ix+112,96,9,16,"#273b49");R(ix+114,99,5,1,"#9eabb1");
+            for(let j=0;j<8;j++){R(ix-11+j*4,105,2,2,"#243a49");R(ix+44+j*5,105,2,2,"#9dabb3");}
+            // Lower flight-control and bridge levels: multiple inset bands and overhangs.
+            P([[ix-32,81],[ix-28,73],[ix+116,73],[ix+138,79],[ix+134,84],[ix-34,84]],"#b2bdc3");
+            R(ix-35,83,174,3,"#263a49");R(ix-30,86,166,3,"#7d929e");
+            P([[ix-41,66],[ix-32,58],[ix+117,58],[ix+145,64],[ix+141,70],[ix-43,70]],"#a5b4bc");
+            R(ix-43,69,186,4,"#354958");R(ix-39,73,176,2,"#d6dfe0");
+            // Bridge angular wraparound windows, with varied warm room illumination.
+            for(let j=0;j<14;j++){
+              const xx=ix-29+j*11;
+              R(xx,61,8,6,([2,6,10,12].includes(j)?"#193143":j%4===0?"#f5d99e":"#c4ac72"));
+              R(xx,60,8,1,"#dde1d9");R(xx+8,61,2,6,"#344b5b");
+            }
+            // Extra observation galleries create a tiered, naval silhouette.
+            P([[ix-26,53],[ix-17,46],[ix+110,46],[ix+127,51],[ix+126,56],[ix-28,56]],"#aab8c0");
+            R(ix-27,55,155,3,"#243746");
+            for(let j=0;j<12;j++){
+              const xx=ix-17+j*11;
+              R(xx,48,8,5,j%5===1?"#243b4b":"#e0bd79");
+              R(xx+8,48,2,5,"#556a78");
+            }
+            P([[ix-10,42],[ix-4,37],[ix+101,37],[ix+113,41],[ix+113,45],[ix-12,45]],"#879ba7");
+            R(ix-12,44,126,2,"#283b47");
+            for(let j=0;j<10;j++)R(ix-4+j*11,39,7,4,j%3===1?"#243948":"#d8bc88");
+            // Top bridge roof, lookout, railings and projecting platforms.
+            P([[ix+4,34],[ix+11,29],[ix+96,29],[ix+105,34],[ix+102,36],[ix+2,36]],"#c0cbd1");
+            R(ix+15,24,78,5,"#617989");R(ix+17,22,74,2,"#d2d9db");
+            R(ix-16,34,130,2,"#d8e1e0");
+            for(let j=0;j<16;j++)R(ix-16+j*8,29,1,5,"#8eabb9");
+            // Radar mast with visible cross bracing, horizontal spars and equipment.
+            R(ix+55,-80,4,103,"#a6bac5");R(ix+57,-88,2,12,"#d5dfe1");
+            line(ix+57,-65,ix+44,-37,"#839aa7");line(ix+57,-65,ix+71,-37,"#839aa7");
+            line(ix+47,-47,ix+68,-47,"#d4dbdd");
+            R(ix+27,-53,67,3,"#d5dfe1");R(ix+19,-34,89,3,"#c0cdd3");
+            R(ix+29,-15,65,3,"#b1c1c8");R(ix+40,7,43,3,"#becbd0");
+            R(ix+25,-56,2,15,"#8399a6");R(ix+93,-59,2,13,"#8399a6");
+            R(ix+102,-43,2,15,"#8da1ad");R(ix+38,-21,2,17,"#a3b5bf");
+            R(ix+73,-79,2,22,"#8fa4b0");R(ix+71,-80,6,2,"#d0d7d9");
+            P([[ix+43,-34],[ix+58,-49],[ix+77,-34]],"#526978");
+            R(ix+31,-57,53,2,"#9db1bc");R(ix+47,-64,25,5,"#435867");
+            for(let k=0;k<6;k++){R(ix+25+k*13,-39,1,6,"#7c93a2");}
+            // High-frequency silhouette detail: railings, satellite dishes, spotlights.
+            for(let k=0;k<19;k++)R(ix-34+k*9,75,1,6,"#c1cdd1");
+            R(ix-35,74,174,1,"#d4dcdf");
+            P([[ix+101,20],[ix+111,15],[ix+111,23]],"#c4d0d6");
+            R(ix+108,16,2,17,"#8ea5af");
+            R(ix-28,57,8,2,"#f3d69b");R(ix+131,57,8,2,"#f3d69b");
+            // Four parked F-35Cs viewed HEAD-ON, facing the player, not side-on.
+            // Their two OUTBOARD wingtips are folded vertically, as on the F-35C.
+            // These are scenery only and do not participate in collisions.
+            function parkedF35C(cx,cy){
+              q.save();q.translate(cx,cy);q.scale(0.609,0.609);
+              // Dark shadow beneath main gear and nose wheels on deck.
+              R(-31,7,62,2,"#263541");
+              // Rear-facing twin canted vertical stabilizers, seen behind wings.
+              P([[-18,-10],[-23,-25],[-17,-27],[-10,-11]],"#607887");
+              P([[18,-10],[23,-25],[17,-27],[10,-11]],"#526c7d");
+              line(-19,-24,-14,-11,"#b1c3cc");line(19,-24,14,-11,"#92aab6");
+              // Broad forward-facing wings: strong horizontal silhouette.
+              P([[-11,-9],[-35,-12],[-35,-6],[-12,-2],[12,-2],[35,-6],[35,-12],[11,-9]],"#667e8f");
+              P([[-12,-10],[-34,-11],[-33,-8],[-12,-6],[12,-6],[33,-8],[34,-11],[12,-10]],"#afbdc6");
+              line(-34,-7,-12,-4,"#d4dde0");line(12,-4,34,-7,"#d4dde0");
+              // Folded vertical wingtips rise at FAR LEFT and FAR RIGHT edges.
+              // Wing hinge is close to the outer end, not beside the fuselage.
+              P([[-35,-10],[-36,-31],[-32,-34],[-28,-11]],"#849dab");
+              P([[35,-10],[36,-31],[32,-34],[28,-11]],"#8b9fac");
+              line(-34,-31,-32,-11,"#d0dde3");line(34,-31,32,-11,"#c2d1d8");
+              R(-35,-11,7,2,"#354d5d");R(28,-11,7,2,"#354d5d");
+              // Front-on stealth fuselage with broad shoulders and pointed lower nose.
+              P([[-13,-10],[-11,-17],[-6,-20],[6,-20],[11,-17],[13,-10],[9,0],[5,5],[-5,5],[-9,0]],"#879ba9");
+              P([[-10,-12],[-6,-17],[6,-17],[10,-12],[7,-2],[0,5],[-7,-2]],"#a7b8c2");
+              // Tall tinted canopy, shown from the front with framed glass.
+              P([[-7,-15],[-6,-22],[-3,-27],[3,-27],[6,-22],[7,-15]],"#223947");
+              P([[-5,-17],[-4,-22],[-2,-25],[2,-25],[4,-22],[5,-17]],"#526e7c");
+              line(-3,-24,1,-24,"#aac6d3");
+              // Angular dark air intakes on either side of the lower nose.
+              P([[-13,-10],[-8,-9],[-7,-5],[-13,-6]],"#2c414e");
+              P([[13,-10],[8,-9],[7,-5],[13,-6]],"#2c414e");
+              // Nose and main gear with three separate dark wheels.
+              R(-20,-2,2,8,"#c4d0d6");R(18,-2,2,8,"#c4d0d6");
+              R(-23,5,6,3,"#192936");R(17,5,6,3,"#192936");
+              R(-1,3,2,5,"#d2dce0");R(-3,7,6,2,"#192936");
+              R(-1,-1,2,2,"#f0e6cf");
+              q.restore();
+            }
+            // Compact head-on parked aircraft: same approximate on-screen height as the playable F-35 (29px).
+            // Retain the landing gear baseline while reducing sprite scale and spacing.
+            for(const jetX of [ix+212,ix+270,ix+328,ix+386]) parkedF35C(jetX,113);
+            // Remaining deck areas stay clear for the actual player landing.
+            // Stern floodlighting, deck edge lights and white runway guide.
+            for(let x=100;x<length-90;x+=80){R(x,120,9,2,"#f8d993");R(x,132,3,2,"#b1c1cd");}
+            for(let x=150;x<length-150;x+=170)R(x,124,54,2,"#d5ded7");
+            nightCarrierSprite=c;
+          }
+          const top=CARRIER_DECK_Y-212;
+          ctx.save();
+          // Water masks everything below the reference's black waterline.
+          ctx.beginPath();ctx.rect(0,0,W,GROUND+1);ctx.clip();
+          ctx.drawImage(nightCarrierSprite,Math.round(left),top);
+          // Island's obstruction beacon flashes red at the highest mast tip.
+          const islandX=left+900; // Same island anchor used by the cached carrier artwork
+          if(islandX>-160&&islandX<W+160){
+            const tipX=islandX+55,tipY=top+90-77;
+            const blink=(Date.now()%1400)<610;
+            if(blink){
+              ctx.save();
+              ctx.globalAlpha=.22;
+              ctx.fillStyle="#ff3b3b";
+              ctx.beginPath();ctx.arc(tipX+1,tipY,10,0,Math.PI*2);ctx.fill();
+              ctx.restore();
+              rect(tipX-2,tipY-2,6,5,"#ff3434");
+              rect(tipX,tipY-1,2,2,"#fff1d5");
+            }else rect(tipX,tipY,3,3,"#702b36");
+          }
+          ctx.restore();
+        }
         function runway() {
           const world = getWorldConfig();
           const sx = RUNWAY_X - camera;
@@ -4107,6 +4285,24 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               label("LUNAR APPROACH 350-455",Math.max(18,sx-245),372,13,"#e1edff");
             }
             ctx.restore();
+            return;
+          }
+          if (world.id === "night") {
+            drawNightCarrier();
+            // The same three-ring overlay is retained, at carrier deck elevation.
+            if (state === "flying" || state === "landing") {
+              APPROACH_RINGS.forEach((ring, index) => {
+                const screenX = ring.x - camera;
+                if (screenX < -70 || screenX > W + 70) return;
+                const cleared = index < ringsCleared;
+                const color = cleared ? "#69f3a0" : "#ffde70";
+                ctx.save();ctx.strokeStyle=color;ctx.lineWidth=6;
+                ctx.shadowColor=color;ctx.shadowBlur=8;
+                ctx.beginPath();ctx.ellipse(screenX, landingGateY(ring), 12, APPROACH_RING_RADIUS, 0, 0, Math.PI*2);
+                ctx.stroke();ctx.restore();
+                label(cleared ? "CLEAR" : String(index+1),screenX,landingGateY(ring)-42,12,color,"center");
+              });
+            }
             return;
           }
           const runwayLeft = LANDING_RUNWAY_START - camera;
@@ -4383,7 +4579,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             if (plane.id === "blackhawk") {
               // Distinct helicopter arrival: visibly flare while still advancing,
               // level into a hover, then begin vertical descent. No rollout.
-              const surface = GROUND - 5;
+              const surface = landingSurfaceY();
               const contactY = surface - plane.h * 0.42;
               const hoverY = contactY - 62;
               const clamp01 = (v) => Math.max(0, Math.min(1, v));
@@ -4434,7 +4630,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               const rearWheelX = plane.id === "c130" ? -7.5 : -30;
               const contactOffset = Math.sin(player.pitch) * rearWheelX * scaleX
                 + Math.cos(player.pitch) * rearWheelY * scaleY;
-              const runwaySurface = GROUND - 5;
+              const runwaySurface = landingSurfaceY();
               const contactY = runwaySurface - contactOffset;
               player.y += (contactY - player.y) * (landingFrames < 30 ? 0.15 : 0.30);
               // Decelerate throughout rollout, without stopping the scene immediately.
@@ -4491,7 +4687,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               if (plane.id === "p38") { rearX = 7; rearY = 18.6; }
               if (plane.id === "shuttle") { rearX = -24 * plane.w / 112; rearY = 20.8 * plane.h / 48; }
               if (helicopterLanding) { rearX = 0; rearY = plane.h * 0.42; }
-              const runwaySurface = isLunarLanding ? 461 : GROUND - 5;
+              const runwaySurface = isLunarLanding ? 461 : landingSurfaceY();
               const projectedWheel = Math.sin(player.pitch) * rearX + Math.cos(player.pitch) * rearY;
               player.y += (runwaySurface - projectedWheel - player.y) * (landingFrames < 28 ? 0.16 : 0.31);
 
@@ -4776,7 +4972,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
                 const crossingY = previousY + (player.y - previousY) * fraction;
                 // An allowance near the stroke accounts for the nose's visible
                 // height without relaxing the mandatory three-ring sequence.
-                if (Math.abs(crossingY - gate.y) <= APPROACH_RING_RADIUS + 3) {
+                if (Math.abs(crossingY - landingGateY(gate)) <= APPROACH_RING_RADIUS + 3) {
                   ringsCleared++;
                   setMessage(ringsCleared === 3
                     ? "All three approach rings cleared! Preparing to land."
@@ -4788,7 +4984,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               }
             }
             if (planeCenterX >= APPROACH_LANDING_TRIGGER) {
-              if (ringsCleared === 3 && !ringsFailed && player.y < GROUND - 12) {
+              if (ringsCleared === 3 && !ringsFailed && player.y < landingSurfaceY() - 7) {
                 state = "landing";
                 landingFrames = 0;
                 player.vy = 0;
@@ -5313,7 +5509,8 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             ctx.save();
             ctx.translate(Math.round(PLANE_X), Math.round(player.y));
             ctx.rotate(player.pitch || 0);
-            const engines = plane.id === "f22" ? [-3.2, 3.2] : [plane.id === "f16" ? -3 : 0];
+            // Side profile: F-22 twin nozzles are side-by-side, so exhaust flames overlap visually.
+            const engines = [plane.id === "f16" ? -3 : 0];
             for (const engineY of engines) {
               polygon([[rearX + 3, engineY - 4], [rearX - length, engineY], [rearX + 3, engineY + 4]], "#f1782e");
               polygon([[rearX + 1, engineY - 2.5], [rearX - length * 0.76, engineY], [rearX + 1, engineY + 2.5]], "#ffd05d");
