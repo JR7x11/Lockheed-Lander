@@ -358,6 +358,29 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
  #hudCenter{padding:3px 8px;gap:3px}#hudPlane{font-size:11px}#hudTrack{height:6px}
 }
 @media(max-width:600px) and (orientation:portrait){#flightHeader{grid-template-columns:52px minmax(105px,1fr) 112px;gap:4px}#flightHeader button{min-height:45px;font-size:11px}#hudCenter{padding:5px}#hudPlane{font-size:11px}}
+    
+/* Achievement system test: independent overlay, no changes to flight geometry. */
+#achievementSplashButton{position:absolute;top:3%;left:3%;width:8%;height:9%;min-height:34px;min-width:38px;max-width:72px;max-height:60px;z-index:5;background:rgba(18,34,53,.83);border:2px solid #9db4c8;color:#ffdf94;font-size:clamp(18px,3vw,30px);padding:0;touch-action:manipulation}
+#achievementOverlay{position:fixed;inset:0;z-index:20000;background:rgba(1,7,17,.83);display:none;align-items:center;justify-content:center;padding:12px;touch-action:auto}
+#achievementOverlay.is-open{display:flex}
+#achievementDialog{width:min(700px,96vw);height:min(86dvh,750px);background:#14243a;border:3px solid #8fa5b3;box-shadow:6px 6px #050b16;display:flex;flex-direction:column;min-height:0;color:#f8edca}
+#achievementDialogHead{display:flex;align-items:center;justify-content:space-between;padding:12px;gap:12px;border-bottom:2px solid #607587}
+#achievementDialogHead strong{font-size:clamp(15px,3vw,22px);color:#ffdb7a}
+#achievementClose{width:44px;min-height:38px;padding:0;flex:none;touch-action:manipulation}
+#achievementSummary{padding:9px 12px;color:#b7cadd;font-size:12px}
+#achievementRows{overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;flex:1;min-height:0;padding:0 12px 14px}
+.achievementRow{padding:11px 3px;border-top:1px solid #40536a;line-height:1.4}
+.achievementRow strong{display:block;color:#f8edca;font-size:13px;overflow-wrap:anywhere}
+.achievementRow p{margin:4px 0 0;color:#b7cadd;font-size:12px;overflow-wrap:anywhere;white-space:pre-line}
+.achievementRow.locked strong,.achievementRow.locked p{color:#8594a8;letter-spacing:.04em}
+#hudPlane{display:flex;justify-content:center;align-items:center;gap:5px}
+#hudPlane .hud-plane-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+#hudPlane .awardEmblem{font-size:18px;flex:none;line-height:1;filter:drop-shadow(0 1px 1px #080f1c)}
+#hudPlane .awardEmblem.gold{color:#f2c354}#hudPlane .awardEmblem.silver{color:#d0d8e2}#hudPlane .awardEmblem.platinum{color:#e1f1ff}
+#achievementToast{display:none;position:absolute;top:100%;left:0;right:0;text-align:center;background:rgba(21,36,59,.96);border:1px solid #9db4c8;color:#ffdf94;padding:6px;font-size:12px;pointer-events:none;z-index:46;overflow-wrap:anywhere}
+#achievementToast.active{display:block}
+@media (max-width:600px){#hudPlane .awardEmblem{font-size:13px}#hudPlane{gap:3px}#achievementToast{font-size:10px;padding:4px}}
+
     </style>
   </head>
   <body>
@@ -368,6 +391,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           alt="Lockheed Lander title screen"
           draggable="false"
         />
+        <button id="achievementSplashButton" type="button" aria-label="Open achievements" title="Achievements">☰</button>
         <button
           id="splashPlay"
           type="button"
@@ -380,6 +404,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
       </div>
     </div>
 
+    <div id="achievementOverlay" aria-hidden="true"><section id="achievementDialog" role="dialog" aria-modal="true" aria-label="Pilot achievements"><div id="achievementDialogHead"><strong>PILOT ACHIEVEMENTS</strong><button id="achievementClose" type="button" aria-label="Close achievements">✕</button></div><div id="achievementSummary"></div><div id="achievementRows"></div></section></div>
     <main>
       <h1>LOCKHEED LANDER</h1>
       <p class="sub">
@@ -387,7 +412,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
       </p>
 
       <div class="panel">
-        <div id="flightHeader" aria-label="Flight controls"><button id="flightMenuButton" aria-label="Open aircraft and world settings" aria-expanded="false">☰</button><div id="hudCenter"><div id="hudPlane">C-130</div><div id="hudTrack" role="progressbar" aria-label="Flight progress" aria-valuemin="0" aria-valuemax="100"><div id="hudFill"></div></div></div><button id="flightAction">FLY</button></div>
+        <div id="flightHeader" aria-label="Flight controls"><button id="flightMenuButton" aria-label="Open aircraft and world settings" aria-expanded="false">☰</button><div id="hudCenter"><div id="hudPlane">C-130</div><div id="hudTrack" role="progressbar" aria-label="Flight progress" aria-valuemin="0" aria-valuemax="100"><div id="hudFill"></div></div><div id="achievementToast" aria-live="polite"></div></div><button id="flightAction">FLY</button></div>
         <div class="toolbar">
           <label
             >World<select id="world">
@@ -880,6 +905,115 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             score: 6,
           },
         ];
+        // Independent, versioned achievement save. Existing paint/unlock keys are never rewritten.
+        const LL_ACH_KEY = "lockheed-achievements-v1";
+        const LL_ACH_IDS = PLANES.map(p => p.id).concat("lampreyUAV");
+        const LL_MILESTONES = [1,10,25,50,100,150,250];
+        const LL_TOTAL_MILESTONES = [100,250,500,1000,2500,5000];
+        const LL_TOTAL_NAMES = ["Century Club","Frequent Lander","Veteran Aviator","Flight Commander","Legendary Pilot","Aviation Legend"];
+        const LL_CRASH_NAMES = {c130:"Cargo Cult",c5:"Flush Landing",f22:"National Debt",f35:"Advanced Mathematics",f16:"Lawn Dart",p38:"Very, Very Frightening",blackhawk:"Night Stalkers Don't Quit",sr71:"Drive It Like You Stole It",electra:"Lost Again",shuttle:"Houston, I Quit",vega:"Trade-In Value",modelg:"Touch Grass",lampreyUAV:"Do You Even Play Video Games?"};
+        const LL_CRASH_TEXT = {
+          c130:"One hundred C-130s destroyed. Does anyone know if FedEx does supply drops??",
+          c5:"One hundred C-5 Galaxies destroyed. Just because there's a bathroom on board doesn't mean you can fly the damn thing from the toilet.",
+          f22:"One hundred F-22 Raptors. Thirty-five billion dollars, don't sweat it that's only what, 500 hammers?",
+          f35:"F(35) × 100 = FML²\nOne hundred F-35s destroyed. We ran the numbers through every supercomputer at the Pentagon. They all came back with the same answer. YOU. ARE. THE. PROBLEM.",
+          f16:"One hundred F-16s destroyed. Congratulations! You've successfully converted an entire fighter squadron into the world's most expensive lawn darts. Hasbro has requested you stop using their trademark.",
+          p38:"One hundred P-38 Lightnings destroyed. Thunderbolts and lightning, very, very frightening! GALILEO! Not so Magnifico.",
+          blackhawk:"Night Stalkers Don't Quit. But maybe you should. Please. No, really. We're begging you.",
+          sr71:"One hundred Blackbirds destroyed. You were told to drive it like you stole it. Not like you stole it, got five stars, and tried to lose the cops by flying directly into a mountain.",
+          electra:"One hundred Model 10 Electras destroyed. Amelia Earhart would be rolling over in her grave right now... If we knew where it was. ... WHAT?! TOO SOON?!",
+          shuttle:"Houston, we have a prob— You know what? No. I'm done. One hundred Space Shuttles. ONE HUNDRED. I quit. Good luck, Houston. You're on your own.",
+          vega:"One hundred Lockheed Vegas destroyed. You know, Chevrolet made a Vega too. After reviewing your flight record, we've decided everyone would be safer if you were driving one. And that's coming from people who remember the Chevy Vega.",
+          modelg:"One hundred Model Gs destroyed. Wait. The MODEL G?! Do you have any idea how long that must've taken?! Good Lord. Go outside. Touch some grass. Make some friends. Seriously, we're not even insulting you anymore. We're genuinely concerned. Do you need us to call someone?",
+          lampreyUAV:"One hundred drones destroyed. You're sitting in front of a screen, playing a video game, controlling a tiny aircraft with ONE BUTTON. ONE. BUTTON. And you've managed to screw it up a hundred times. I mean, do you even play video games? Have you considered something more your speed? Maybe a nice coloring book?"
+        };
+        const LL_SPECIAL = [
+          ["heavy_metal","Heavy Metal","Land the C-130 and C-5 on every eligible level."],
+          ["warp","Into the Unknown","Discover and enter the Warp Zone."],
+          ["upside","The Upside Down","Pass through the Upside Down and land safely."],
+          ["first_upside","Beginner's Luck","Survive your first Upside Down visit and land on that flight."],
+          ["unlock_sr71","Welcome to Skunkworks","Unlock the SR-71 Blackbird."],
+          ["unlock_electra","The Amelia Earhart Experience","Unlock the Model 10-E Electra."],
+          ["unlock_vega","The Sky's the Limit","Unlock the Lockheed Vega."],
+          ["unlock_shuttle","One Giant Leap","Unlock the Space Shuttle."],
+          ["unlock_modelg","Back to the Beginning","Unlock the Model G."],
+          ["shuttle_carrier","Where We're Going We Don't Need Roads","Land the Space Shuttle on the aircraft carrier."],
+          ["boost_land","Speed Demon","Use the Atlanta boost corridor and land safely."],
+          ["precision","Precision Pilot","Complete 25 approaches without missing a required ring."]
+        ];
+        const LL_GOOFY = [
+          ["chicken","Finger Lickin' Good","Fly into the Big Chicken's open mouth."],
+          ["texas_tea","Texas Tea","Crash into a Texas oil derrick."],
+          ["insanity","Definition of Insanity","Crash into the exact same airborne obstacle on three consecutive attempts in the same level."],
+          ["helicopter_boost","Sir, This Is a Helicopter","Pass the Atlanta boost corridor in the Blackhawk."],
+          ["worst_flyover","Worst Flyover Ever","Crash the Model G into the TKE building while attempting the boost corridor."],
+          ["boot","These Boots Are Made for Landing","Land a Blackhawk on the Fort Worth cowboy boot."],
+          ["not_moon","That's No Moon...","Crash the Shuttle into AT&T Stadium."],
+          ["cow_moon","Cow Jumped Over the Moon","Fly the C-5 completely over the Moon without touching it."],
+          ["wreck_ralph","Wreck-It Ralph","Strike three distinct ground obstacles per eligible level using one aircraft."],
+          ["submarine","Worst Submarine Ever","Crash the C-130 into the ocean immediately after takeoff."],
+          ["parking","Sir, You Can't Park Here","Crash the Air Drone into the water immediately after deployment."]
+        ];
+        const LL_REGISTRY = [];
+        for (const p of PLANES) for (const m of LL_MILESTONES) LL_REGISTRY.push({id:`landing_${p.id}_${m}`,name:`${p.name} — ${m===1?"First Successful Landing":m+" Landings"}`,desc:`Successfully land the ${p.name} ${m} ${m===1?"time":"times"}.`});
+        for (const m of [1,10,25,50,100]) LL_REGISTRY.push({id:`landing_lampreyUAV_${m}`,name:`Air Drone — ${m===1?"First Successful Landing":m+" Landings"}`,desc:`Successfully land the Air Drone ${m} ${m===1?"time":"times"}.`});
+        LL_TOTAL_MILESTONES.forEach((m,i)=>LL_REGISTRY.push({id:`total_${m}`,name:LL_TOTAL_NAMES[i],desc:`Complete ${m.toLocaleString()} successful landings across all aircraft.`}));
+        LL_ACH_IDS.forEach(id=>LL_REGISTRY.push({id:`crash_${id}_100`,name:LL_CRASH_NAMES[id],desc:LL_CRASH_TEXT[id]}));
+        LL_SPECIAL.forEach(([id,name,desc])=>LL_REGISTRY.push({id, name,desc}));
+        LL_GOOFY.forEach(([id,name,desc])=>LL_REGISTRY.push({id, name,desc,goofy:true}));
+        const llAchievements = (()=>{try{const data=JSON.parse(localStorage.getItem(LL_ACH_KEY)||"{}");return {landings:data.landings||{},crashes:data.crashes||{},earned:data.earned||{},special:data.special||{}}}catch(_){return {landings:{},crashes:{},earned:{},special:{}}}})();
+        let llFlightAwards=[];
+        function llSave(){try{localStorage.setItem(LL_ACH_KEY,JSON.stringify(llAchievements))}catch(_){}}
+        function llEarn(id){
+          if(llAchievements.earned[id] || !LL_REGISTRY.some(a=>a.id===id))return false;
+          llAchievements.earned[id]=Date.now();llSave();
+          const item=LL_REGISTRY.find(a=>a.id===id);llFlightAwards.push(item.name);
+          const toast=document.getElementById('achievementToast');if(toast){toast.textContent=`ACHIEVEMENT UNLOCKED: ${item.name}`;toast.classList.add('active')}
+          return true;
+        }
+        function llCountLanding(id){
+          if(!LL_ACH_IDS.includes(id))return;
+          const count=llAchievements.landings[id]=(Number(llAchievements.landings[id])||0)+1;
+          const milestones=id==='lampreyUAV'?[1,10,25,50,100]:LL_MILESTONES;
+          if(milestones.includes(count))llEarn(`landing_${id}_${count}`);
+          const total=Object.values(llAchievements.landings).reduce((a,b)=>a+(Number(b)||0),0);
+          if(LL_TOTAL_MILESTONES.includes(total))llEarn(`total_${total}`);
+          llSave();
+        }
+        function llCountCrash(id){
+          if(!LL_ACH_IDS.includes(id))return;
+          const count=llAchievements.crashes[id]=(Number(llAchievements.crashes[id])||0)+1;
+          if(count===100)llEarn(`crash_${id}_100`);llSave();
+        }
+        function llRenderGallery(){
+          const rows=document.getElementById('achievementRows');rows.replaceChildren();
+          let complete=0;
+          LL_REGISTRY.forEach(item=>{
+            const earned=!!llAchievements.earned[item.id];if(earned)complete++;
+            const row=document.createElement('div');row.className='achievementRow'+(earned?'':' locked');
+            const title=document.createElement('strong');title.textContent=earned?item.name:'?????????????????????';
+            const desc=document.createElement('p');desc.textContent=earned?item.desc:'?????????????????????????';
+            row.append(title,desc);rows.append(row);
+          });
+          document.getElementById('achievementSummary').textContent=`${complete} of ${LL_REGISTRY.length} achievements earned`;
+        }
+        const llOverlay=document.getElementById('achievementOverlay');
+        function llToggleGallery(open){llOverlay.classList.toggle('is-open',open);llOverlay.setAttribute('aria-hidden',String(!open));if(open)llRenderGallery();}
+        document.getElementById('achievementSplashButton').addEventListener('click',()=>llToggleGallery(true));
+        document.getElementById('achievementClose').addEventListener('click',()=>llToggleGallery(false));
+        llOverlay.addEventListener('click',e=>{if(e.target===llOverlay)llToggleGallery(false)});
+        window.addEventListener('keydown',e=>{if(e.key==='Escape'&&llOverlay.classList.contains('is-open'))llToggleGallery(false)});
+        let llVisitedUpsideThisRun=false;
+        let llFirstUpsideThisRun=false;
+        function llSyncHistoricalUnlocks(){
+          if(electraUnlocked)llEarn('unlock_electra');
+          if(vegaUnlocked)llEarn('unlock_vega');
+          if(modelGUnlocked)llEarn('unlock_modelg');
+          if(isSR71Unlocked())llEarn('unlock_sr71');
+          if(isSpaceUnlocked())llEarn('unlock_shuttle');
+          // Existing unlocks are recognized, but historic landings/crashes cannot be reconstructed.
+        }
+        
         // Private test build: crash into the ocean warp to discover the Electra.
         const ELECTRA_KEY = "lockheed-electra-warp-v1";
         const VEGA_TEST_ELECTRA_ACCESS = false; // Production: Electra requires its normal secret unlock.
@@ -912,6 +1046,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           electraUnlocked = true;
           try { localStorage.setItem(ELECTRA_KEY,"1"); } catch (_) {}
           refreshElectraOption();
+          llEarn('unlock_electra');
         }
         function refreshElectraOption() {
           const o = aircraftSelect.querySelector('option[value="electra"]');
@@ -922,6 +1057,10 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         function enterUpsideDown() {
           // Save the exact horizontal entry position before switching to the
           // beginning of the full inverted nighttime ocean course.
+          llVisitedUpsideThisRun=true;
+          llFirstUpsideThisRun=!llAchievements.special.firstUpsideVisited;
+          llAchievements.special.firstUpsideVisited=true;llSave();
+          llEarn('warp');
           upsideReturn = {camera, y: Math.max(155, Math.min(GROUND-105, player.y-100)), vy:0};
           upsideFrames = 0; upsideCamera = 0; upsideAscent = 0;
           state="upsideDown"; camera=0; player.y=250; player.vy=-1.5; player.pitch=0;
@@ -1511,6 +1650,8 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           upsideFrames = 0; upsideReturn = null; upsideCamera = 0; upsideAscent = 0;
           vegaReturnArmed = false;
           modelGUnlockReveal = false;
+          llFlightAwards=[];llVisitedUpsideThisRun=false;llFirstUpsideThisRun=false;
+          const achievementToast=document.getElementById('achievementToast');if(achievementToast)achievementToast.classList.remove('active');
           if (inLamprey()) {
             // Flight phase pilots the propeller drone; underwater phase uses Lamprey.
             plane = {id:"lampreyUAV",name:"Lamprey MMAUV",speed:4.65,lift:-5.9,gravity:0.265,w:94,h:29,score:5};
@@ -1620,6 +1761,24 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           }
           vegaReturnArmed = false;
           state = success ? "landed" : "crashed";
+          llCountLanding(success ? plane.id : '__none__');
+          if(!success) llCountCrash(plane.id);
+          if(success && llVisitedUpsideThisRun){llEarn('upside');if(llFirstUpsideThisRun)llEarn('first_upside')}
+          if(success && atlantaBoostUsed)llEarn('boost_land');
+          if(success && !ringsFailed && ringsCleared>=3){
+            llAchievements.special.perfectApproaches=(Number(llAchievements.special.perfectApproaches)||0)+1;
+            if(llAchievements.special.perfectApproaches>=25)llEarn('precision');llSave();
+          }
+          if(success && ['c130','c5'].includes(plane.id)){
+            const world=worldSelect.value;
+            if(['darb','ftw','night'].includes(world)){
+              const completed=llAchievements.special.heavyMetal||{};
+              completed[plane.id+'_'+world]=true;llAchievements.special.heavyMetal=completed;
+              if(['c130','c5'].every(id=>['darb','ftw','night'].every(w=>completed[id+'_'+w])))llEarn('heavy_metal');llSave();
+            }
+          }
+          if(success && vegaAchievement)llEarn('unlock_vega');
+          if(success && modelGUnlocked)llEarn('unlock_modelg');
           const modelGJustUnlocked = recordModelGFlight(success);
           if (modelGJustUnlocked) modelGUnlockReveal = true;
           aircraftSelect.disabled = false;
@@ -1662,6 +1821,8 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               );
             } catch (_) {}
             refreshAircraftOptions();
+            if(!wasSR71Unlocked && isSR71Unlocked())llEarn('unlock_sr71');
+            if(isSpaceUnlocked())llEarn('unlock_shuttle');
             refreshVegaOption();
             refreshPaints();
             syncSecretSpaceWorld();
@@ -5659,6 +5820,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             );
         }
         refreshModelGOption();
+        llSyncHistoricalUnlocks();
         refreshElectraOption();
         refreshAircraftOptions();
         refreshLampreyAircraft();
@@ -5687,7 +5849,16 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         function updateTopHUD() {
           const activeId = inLamprey() ? "lampreyUAV" : (getWorldConfig().id === "space" ? "shuttle" : aircraftSelect.value);
           const activePlane = activeId === "shuttle" ? `SPACE SHUTTLE ${paint?.name || "DISCOVERY"}` : (activeId === "blackhawk" ? (paint?.name === "NSDQ" ? "MH-60M Blackhawk" : "UH-60 Blackhawk") : (PLANES.find(p => p.id === activeId)?.name || (activeId === "lampreyUAV" ? "LAMPREY MMAUV" : aircraftSelect.selectedOptions[0]?.textContent || "AIRCRAFT")));
-          hudPlane.textContent = activePlane.toUpperCase();
+          const llTotalSilver=Object.values(llAchievements.landings).some(v=>Number(v)>=50);
+          const llTotalGold=Object.entries(llAchievements.landings).some(([id,v])=>Number(v)>=(id==='lampreyUAV'?100:250));
+          const llPlatinum=LL_GOOFY.some(g=>!!llAchievements.earned[g[0]]);
+          const llHudKey=activePlane+'|'+llTotalSilver+'|'+llTotalGold+'|'+llPlatinum;
+          if(hudPlane.dataset.key!==llHudKey){
+            hudPlane.dataset.key=llHudKey;hudPlane.replaceChildren();
+            if(llPlatinum){const x=document.createElement('span');x.className='awardEmblem platinum';x.textContent='✥';x.title='Platinum Propeller';hudPlane.append(x)}
+            const name=document.createElement('span');name.className='hud-plane-name';name.textContent=activePlane.toUpperCase();hudPlane.append(name);
+            if(llTotalSilver||llTotalGold){const x=document.createElement('span');x.className='awardEmblem '+(llTotalGold?'gold':'silver');x.textContent='⚜';x.title=llTotalGold?'Gold Wings':'Silver Wings';hudPlane.append(x)}
+          }
           // Track the aircraft's actual traveled distance along the level, not
           // DOM layout or a second animation timer. The landing zone is the goal.
           const finishX = LANDING_RUNWAY_START;
