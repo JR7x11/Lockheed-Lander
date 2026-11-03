@@ -128,7 +128,8 @@
         -webkit-tap-highlight-color: transparent;
       }
       #message {
-        min-height: 2.5em;
+        /* Reserve two full lines (line-height 1.5) so changing messages never move the page (CLS). */
+        min-height: 3em;
         padding-top: 10px;
         line-height: 1.5;
         color: #ffdf94;
@@ -138,6 +139,10 @@
         color: #b7cadd;
         line-height: 1.5;
         font-size: 13px;
+      }
+      @media (max-width: 600px) {
+        /* Phones held upright: smaller text and four reserved lines cover every in-game message. */
+        #message { font-size: 14px; min-height: 6em; }
       }
       #llModeNote { flex: 1 1 100%; font-size: 12px; line-height: 1.45; color: #ffdf94; min-height: 1.2em; }
       #llModeNote .warn { color: #ff9d7a; }
