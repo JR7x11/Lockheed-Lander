@@ -1910,7 +1910,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         }
         let llTakeoff = null, llTakeoffPower = 1, llRotorPhase = 0, llRotorRate = 1;
         let llHoldFrames = 0, llAbPower = 0;
-        const AB_JETS = ["f16", "f22", "f35", "sr71"], AB_HOLD_FRAMES = 30; // 0.5 s of holding climb
+        const AB_JETS = ["f16", "f22", "f35", "sr71"], AB_HOLD_FRAMES = 13; // 0.22 s of holding climb
         function takeoffPlan() {
           const tower = groundObstacles.find(o => o.firstTower && o.type === "tower");
           // Hand control over at the same spot as before: just before the ATC tower.
@@ -5137,7 +5137,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           llHoldFrames = state === "flying" && (climbHeld || spaceHeld) ? llHoldFrames + 1 : 0;
           const abWanted = AB_JETS.includes(plane.id) && llHoldFrames >= AB_HOLD_FRAMES;
           if (abWanted && llAbPower === 0) llRumble(0.35, 0.25, 160, 0); // controller thump on light-off
-          llAbPower = abWanted ? Math.min(1, llAbPower + 0.08) : Math.max(0, llAbPower - 0.12);
+          llAbPower = abWanted ? Math.min(1, llAbPower + 0.2) : Math.max(0, llAbPower - 0.12);
           // After shutdown the rotor winds down over several seconds.
           if (state === "landed" && plane.id === "blackhawk") llRotorRate = Math.max(0.1, llRotorRate * 0.993);
           if (state === "upsideDown") {
