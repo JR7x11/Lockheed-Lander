@@ -944,6 +944,24 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         TAKEOFF.shuttle = TAKEOFF.p38;
         const TAKEOFF_CLIMBOUT = 110;
         const llMod = (a, n) => ((a % n) + n) % n;
+        // Aircraft collision boxes measured against each aircraft's artwork: half-width, half-height and
+        // vertical offset of the box centre from the aircraft anchor. Kept a little inside the visible
+        // fuselage so close calls feel exciting; thin tail fins, props and wingtips can graze.
+        const LL_HITBOX = {
+          c130: {halfW:50.6, halfH:10.0, offY:-1.0},
+          c5: {halfW:79.1, halfH:16.0, offY:-6.0},
+          blackhawk: {halfW:44.2, halfH:12.5, offY:2.5},
+          f35: {halfW:28.5, halfH:9.0, offY:-2.0},
+          f16: {halfW:35.0, halfH:7.0, offY:-4.0},
+          f22: {halfW:33.1, halfH:8.0, offY:-4.0},
+          p38: {halfW:51.5, halfH:10.0, offY:2.0},
+          sr71: {halfW:49.2, halfH:4.5, offY:-1.5},
+          electra: {halfW:52.9, halfH:14.0, offY:-5.0},
+          vega: {halfW:51.5, halfH:11.5, offY:3.5},
+          modelg: {halfW:40, halfH:22.5, offY:2.5},
+          shuttle: {halfW:59.8, halfH:13.0, offY:-4.0},
+          lampreyUAV: {halfW:45.5, halfH:8.0, offY:0.0}
+        };
         const LL_ACH_KEY = "lockheed-achievements-v1";
         const LL_ACH_IDS = PLANES.map(p => p.id).concat("lampreyUAV");
         const LL_MILESTONES = [1,10,25,50,100,150,250];
@@ -1795,6 +1813,8 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           );
         }
         let llTakeoff = null, llTakeoffPower = 1, llRotorPhase = 0, llRotorRate = 1;
+        let llHoldFrames = 0, llAbPower = 0;
+        const AB_JETS = ["f16", "f22", "f35", "sr71"], AB_HOLD_FRAMES = 60; // 1 s of holding climb
         function takeoffPlan() {
           const tower = groundObstacles.find(o => o.firstTower && o.type === "tower");
           // Hand control over at the same spot as before: just before the ATC tower.
@@ -4713,9 +4733,133 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             a.y += verticalStep;
           }
         }
+        // Aircraft collision boxes (see the comment where they are used).
+        function llHitbox() {
+          const id = plane.id;
+          const t = LL_HITBOX[id];
+          if (t) return t;
+          return {halfW: plane.w * (id === "f16" ? 0.31 : 0.36), halfH: plane.h * (id === "f16" ? 0.32 : 0.37), offY: 0};
+        }
+        // Highest solid point of a ground obstacle across the aircraft's footprint.
+        function llHiddenObstacle(o) {
+          return o.type === "hangar" && o.x === START_X + 4 * SPACING &&
+            (worldSelect.value === "ftw" || (worldSelect.value === "darb" && o.hangarLabel === "DARB"));
+        }
+        // How far either side of its centre an obstacle can be hit.
+        function llObstacleReach(o) {
+          return getWorldConfig().id === "night" && o.type === "oilRig" ? 96 : o.width * 0.46;
+        }
+        function llLandmarkTop(rel, halfW) {
+          const L = worldLandmark, half = L.width * 0.41;
+          if (Math.abs(rel) < half + halfW) return GROUND - L.height * 1.07;
+          if (L.type === "boot" && rel > 0 && rel - halfW < half + 38) return GROUND - L.height * 0.33; // toe
+          return GROUND;
+        }
+        function llObstacleTop(o, sx, halfW) {
+          if (llHiddenObstacle(o)) return GROUND;
+          const dx = Math.abs(sx - PLANE_X);
+          const landmarkX = PLANE_X - sx;
+          let top =
+                o.type === "mountain"
+                  ? o.top +
+                    (Math.max(0, dx - halfW) / (o.width / 2)) * (GROUND - o.top)
+                  : o.top;
+              if (o.type === "oilRig" && getWorldConfig().id === "ftw") {
+                // Ignore empty air above or beside the real pumpjack structure.
+                // Match collision to the top of its beam/horsehead instead of an
+                // invisible full-width box reaching the old o.top height.
+                const offset = PLANE_X - sx;
+                const phase = performance.now() * 0.00125 + o.x * 0.0019;
+                const ang = Math.sin(phase) * 0.155;
+                const horseTop = o.top + 55 - 55 * Math.sin(ang) - 22;
+                const beamTop = o.top + 55 - 7 + Math.sin(ang) * offset;
+                if (offset < -65 - halfW || offset > 67 + halfW) top = GROUND;
+                else if (offset < -37 + halfW) top = Math.max(o.top+9, Math.min(horseTop,beamTop) + 7);
+                else if (offset < 58 + halfW) top = beamTop + 7;
+                else top = GROUND - 31;
+              }
+              if (o.type === "constructionCrane") {
+                top = Math.abs(landmarkX) < 14 + halfW ? o.top - 18 :
+                      landmarkX > -93 - halfW && landmarkX < 45 + halfW ? o.top + 14 : GROUND;
+              }
+              if (o.type === "kennesawMountain") {
+                // Test the aircraft footprint against the mountain silhouette.
+                top=GROUND;
+                for(let px=landmarkX-halfW;px<=landmarkX+halfW;px+=3)
+                  top=Math.min(top,kennesawRidgeY(px,o.top));
+                top=Math.min(top,kennesawRidgeY(landmarkX+halfW,o.top));
+              }
+              if (o.type === "antennas") {
+                top = GROUND;
+                for (const [center, roof] of [[-48,o.top+31],[0,o.top],[49,o.top+60]])
+                  if (Math.abs(landmarkX-center)<14+halfW) top=Math.min(top,roof);
+              }
+              if (o.type === "attStadium") {
+                // Follow the actual domed roof instead of treating the entire
+                // 720px landmark as a single full-height rectangle.
+                const roofProfile = [
+                  [-355, 92], [-337, 138], [-285, 177],
+                  [-190, 202], [-110, 218], [110, 218],
+                  [190, 202], [285, 177], [337, 138], [355, 92]
+                ];
+                function roofHeightAt(x) {
+                  if (x <= -355 || x >= 355) return 0;
+                  for (let j = 1; j < roofProfile.length; j++) {
+                    const [x1,h1] = roofProfile[j - 1];
+                    const [x2,h2] = roofProfile[j];
+                    if (x <= x2) return h1 + (h2-h1) * ((x-x1)/(x2-x1));
+                  }
+                  return 0;
+                }
+                // C-5 fuselage fits inside its visual bounding box, especially
+                // at the wingtips; avoid invisible contact over the dome.
+                const roofHalfWidth = plane.id === "c5" ? halfW * 0.84 : halfW;
+                let highest = 0;
+                for (let xx = landmarkX-roofHalfWidth; xx <= landmarkX+roofHalfWidth; xx += 5)
+                  highest = Math.max(highest, roofHeightAt(xx));
+                highest = Math.max(highest, roofHeightAt(landmarkX+roofHalfWidth));
+                top = GROUND - highest + (plane.id === "c5" ? 5 : 0);
+              }
+              if (o.type === "truistTke") {
+                // Extents match drawTruistBattery; account for the plane width.
+                const regions = [
+                  [-169, -127, GROUND - 65],
+                  [-126, -96, GROUND - 100],
+                  [-95, -68, GROUND - 79],
+                  [-81, 122, GROUND - 155], // Stadium roof/sign
+                  [112, 141, GROUND - 95],
+                  [142, 169, GROUND - 69],
+                  [116, 166, o.top - 4],    // Full-height TKE Tower
+                ];
+                top = GROUND;
+                for (const [left, right, roofY] of regions) {
+                  if (landmarkX + halfW >= left && landmarkX - halfW <= right)
+                    top = Math.min(top, roofY);
+                }
+              }
+          if (o.type === "oilRig" && getWorldConfig().id === "night") {
+            // Offshore platform as drawn: deck, exhaust stacks, equipment modules and the derrick.
+            // Each part keeps ~3 px of graze room; thin crane booms are left as near misses.
+            const parts = [[-96, 96, 0], [-89, -72, -42], [65, 82, -42], [-71, -12, -37], [-14, 32, -59],
+              [33, 84, -32], [-43, 17, -80], [-12, 12, -100], [-5, 5, -138]];
+            top = GROUND;
+            for (const [l, r, y] of parts)
+              if (landmarkX + halfW >= l && landmarkX - halfW <= r) top = Math.min(top, o.top + y + 3);
+          }
+          if (o.type === "tower") {
+            // Follow the drawn tower: thin antenna (tip may be grazed), cab roof, then shaft.
+            const ax = Math.abs(landmarkX);
+            top = ax < 3 + halfW ? o.top + 6 : ax < 33 + halfW ? o.top + 16 : GROUND;
+          }
+          return top;
+        }
         function update() {
           if (mobileMenuOpen) { climbHeld = false; spaceHeld = false; return; }
           llRotorPhase += 1.3 * llRotorRate;
+          llHoldFrames = state === "flying" && (climbHeld || spaceHeld) ? llHoldFrames + 1 : 0;
+          const abWanted = AB_JETS.includes(plane.id) && llHoldFrames >= AB_HOLD_FRAMES;
+          if (abWanted && llAbPower === 0) llRumble(0.35, 0.25, 160, 0); // controller thump on light-off
+          llAbPower = abWanted ? Math.min(1, llAbPower + 0.08) : Math.max(0, llAbPower - 0.12);
           // After shutdown the rotor winds down over several seconds.
           if (state === "landed" && plane.id === "blackhawk") llRotorRate = Math.max(0.1, llRotorRate * 0.993);
           if (state === "upsideDown") {
@@ -5095,17 +5239,19 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           updateAtlantaBoost();
           camera += plane.speed * worldSpeedMultiplier() * atlantaBoostFactor;
           // Test: slimmer, forgiving flight collision footprint for every aircraft.
-          const halfW = plane.w * (plane.id === "f16" ? 0.31 : 0.36),
-            halfH = plane.h * (plane.id === "f16" ? 0.32 : 0.37);
+          const hb = llHitbox();
+          const halfW = hb.halfW, halfH = hb.halfH;
+          // Collision centre follows the drawn artwork, which is not always centred on the anchor.
+          const hitY = player.y + hb.offY;
           // Soft ceiling: partial overlap with the top edge is allowed.
           // Only crash after the entire aircraft collision footprint is above
           // the visible playfield (its bottom edge has passed y = 0).
-          if (player.y + halfH < 0) {
+          if (hitY + halfH < 0) {
             finish(false, "You climbed too high.");
             return;
           }
           const lowerBoundary = getWorldConfig().id === "space" ? H - 18 : GROUND - 1;
-          if (player.y + halfH > lowerBoundary) {
+          if (hitY + halfH > lowerBoundary) {
             if (inWarp()) {
               if (plane.id === "electra") { enterUpsideDown(); return; }
               const newlyUnlocked = !electraUnlocked;
@@ -5144,91 +5290,13 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             if (o.firstTower && o.type === "tower") continue;
             // World 3: the takeoff platform is scenery, not a collision obstacle.
             if (getWorldConfig().id === "night" && i === 0 && o.type === "oilRig") continue;
-            if (dx < o.width * 0.46 + halfW) {
+            if (dx < llObstacleReach(o) + halfW) {
               // Collision follows the visible skyline of the combined landmark.
               // Only TKE Tower reaches the original mountain height; the
               // stadium and differently sized Battery buildings remain lower.
-              const landmarkX = PLANE_X - sx;
-              let top =
-                o.type === "mountain"
-                  ? o.top +
-                    (Math.max(0, dx - halfW) / (o.width / 2)) * (GROUND - o.top)
-                  : o.top;
-              if (o.type === "oilRig" && getWorldConfig().id === "ftw") {
-                // Ignore empty air above or beside the real pumpjack structure.
-                // Match collision to the top of its beam/horsehead instead of an
-                // invisible full-width box reaching the old o.top height.
-                const offset = PLANE_X - sx;
-                const phase = performance.now() * 0.00125 + o.x * 0.0019;
-                const ang = Math.sin(phase) * 0.155;
-                const horseTop = o.top + 55 - 55 * Math.sin(ang) - 22;
-                const beamTop = o.top + 55 - 7 + Math.sin(ang) * offset;
-                if (offset < -65 - halfW || offset > 67 + halfW) top = GROUND;
-                else if (offset < -37 + halfW) top = Math.max(o.top+9, Math.min(horseTop,beamTop) + 7);
-                else if (offset < 58 + halfW) top = beamTop + 7;
-                else top = GROUND - 31;
-              }
-              if (o.type === "constructionCrane") {
-                top = Math.abs(landmarkX) < 14 + halfW ? o.top - 18 :
-                      landmarkX > -93 - halfW && landmarkX < 45 + halfW ? o.top + 14 : GROUND;
-              }
-              if (o.type === "kennesawMountain") {
-                // Test the aircraft footprint against the mountain silhouette.
-                top=GROUND;
-                for(let px=landmarkX-halfW;px<=landmarkX+halfW;px+=3)
-                  top=Math.min(top,kennesawRidgeY(px,o.top));
-                top=Math.min(top,kennesawRidgeY(landmarkX+halfW,o.top));
-              }
-              if (o.type === "antennas") {
-                top = GROUND;
-                for (const [center, roof] of [[-48,o.top+31],[0,o.top],[49,o.top+60]])
-                  if (Math.abs(landmarkX-center)<14+halfW) top=Math.min(top,roof);
-              }
-              if (o.type === "attStadium") {
-                // Follow the actual domed roof instead of treating the entire
-                // 720px landmark as a single full-height rectangle.
-                const roofProfile = [
-                  [-355, 92], [-337, 138], [-285, 177],
-                  [-190, 202], [-110, 218], [110, 218],
-                  [190, 202], [285, 177], [337, 138], [355, 92]
-                ];
-                function roofHeightAt(x) {
-                  if (x <= -355 || x >= 355) return 0;
-                  for (let j = 1; j < roofProfile.length; j++) {
-                    const [x1,h1] = roofProfile[j - 1];
-                    const [x2,h2] = roofProfile[j];
-                    if (x <= x2) return h1 + (h2-h1) * ((x-x1)/(x2-x1));
-                  }
-                  return 0;
-                }
-                // C-5 fuselage fits inside its visual bounding box, especially
-                // at the wingtips; avoid invisible contact over the dome.
-                const roofHalfWidth = plane.id === "c5" ? halfW * 0.84 : halfW;
-                let highest = 0;
-                for (let xx = landmarkX-roofHalfWidth; xx <= landmarkX+roofHalfWidth; xx += 5)
-                  highest = Math.max(highest, roofHeightAt(xx));
-                highest = Math.max(highest, roofHeightAt(landmarkX+roofHalfWidth));
-                top = GROUND - highest + (plane.id === "c5" ? 5 : 0);
-              }
-              if (o.type === "truistTke") {
-                // Extents match drawTruistBattery; account for the plane width.
-                const regions = [
-                  [-169, -127, GROUND - 65],
-                  [-126, -96, GROUND - 100],
-                  [-95, -68, GROUND - 79],
-                  [-81, 122, GROUND - 155], // Stadium roof/sign
-                  [112, 141, GROUND - 95],
-                  [142, 169, GROUND - 69],
-                  [116, 166, o.top - 4],    // Full-height TKE Tower
-                ];
-                top = GROUND;
-                for (const [left, right, roofY] of regions) {
-                  if (landmarkX + halfW >= left && landmarkX - halfW <= right)
-                    top = Math.min(top, roofY);
-                }
-              }
+              const top = llObstacleTop(o, sx, halfW);
               const collisionBottom = o.type === "attStadium" && plane.id === "c5"
-                ? player.y + halfH * 0.86 : player.y + halfH;
+                ? hitY + halfH : hitY + halfH; // C-5 stadium workaround no longer needed
               if (collisionBottom > top) {
                 finish(
                   false,
@@ -5257,9 +5325,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             const lx = worldLandmark.x - camera;
             const dx = Math.abs(lx - PLANE_X);
             if (
-              dx < worldLandmark.width * 0.41 + halfW &&
-              Math.abs(player.y - (GROUND - worldLandmark.height * 0.7)) <
-                worldLandmark.height * 0.37 + halfH
+              hitY + halfH > llLandmarkTop(PLANE_X - lx, halfW)
             ) {
               finish(
                 false,
@@ -5280,8 +5346,8 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             if (a.noCollision || (getWorldConfig().id === "space" && a.type !== "lightplane" && a.x > RUNWAY_X - 900)) continue;
             const activeHeight = a.height * 0.37;
             if (
-              Math.abs(sx - PLANE_X) < a.width * 0.41 + halfW &&
-              Math.abs(player.y - a.y) < activeHeight + halfH
+              Math.abs(sx - PLANE_X) < a.width * (a.type === "lightplane" || a.type === "floatplane" ? 0.5 : 0.41) + halfW &&
+              Math.abs(hitY - a.y) < activeHeight + halfH
             ) {
               const collisionMessage =
                 getWorldConfig().id === "space"
@@ -5841,20 +5907,24 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           // Standard takeoff jets, plus temporary Atlanta boost flames.
           // Draw behind aircraft artwork; preserve the corrected F-16 offset.
           const atlantaFlames = state === "flying" && atlantaBoostFactor > 1.005;
-          if ((state === "takeoff" && ["f22", "f35", "f16"].includes(plane.id)) || atlantaFlames) {
-            const pulse = atlantaFlames ? atlantaBoostFrames : takeoffFrames;
-            const power = atlantaFlames ? Math.min(1, (atlantaBoostFactor - 1) / .24) : Math.max(0.12, llTakeoffPower) * Math.min(1, (pulse + 8) / 32);
+          const abFlames = state === "flying" && llAbPower > 0.02 && AB_JETS.includes(plane.id);
+          if ((state === "takeoff" && ["f22", "f35", "f16"].includes(plane.id)) || atlantaFlames || abFlames) {
+            const pulse = atlantaFlames ? atlantaBoostFrames : abFlames ? llHoldFrames + llRotorPhase : takeoffFrames;
+            const power = atlantaFlames ? Math.min(1, (atlantaBoostFactor - 1) / .24) : abFlames ? llAbPower : Math.max(0.12, llTakeoffPower) * Math.min(1, (pulse + 8) / 32);
             const length = (19 + (pulse % 6) * 2 + Math.sin(pulse * 0.41) * 4) * power;
-            const rearX = -plane.w * (plane.id === "f16" ? 0.46 : 0.48);
+            const rearX = plane.id === "sr71" ? -55 : -plane.w * (plane.id === "f16" ? 0.46 : 0.48); // SR-71: J58 nacelle exit
             ctx.save();
             ctx.translate(Math.round(PLANE_X), Math.round(player.y));
             ctx.rotate(player.pitch || 0);
             // Side profile: F-22 twin nozzles are side-by-side, so exhaust flames overlap visually.
-            const engines = [plane.id === "f16" ? -3 : 0];
+            const engines = [plane.id === "f16" ? -3 : plane.id === "sr71" ? 2 : 0];
             for (const engineY of engines) {
               polygon([[rearX + 3, engineY - 4], [rearX - length, engineY], [rearX + 3, engineY + 4]], "#f1782e");
               polygon([[rearX + 1, engineY - 2.5], [rearX - length * 0.76, engineY], [rearX + 1, engineY + 2.5]], "#ffd05d");
               polygon([[rearX, engineY - 1], [rearX - length * 0.47, engineY], [rearX, engineY + 1]], "#fff4ba");
+              // SR-71 J58 shock diamonds in full afterburner.
+              if (plane.id === "sr71" && abFlames && power > 0.6)
+                for (let d = 1; d <= 3; d++) rect(rearX - d * length * 0.24 - 1, engineY - 1, 2, 2, "#fffbe6");
             }
             ctx.restore();
           }
