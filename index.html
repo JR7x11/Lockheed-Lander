@@ -915,6 +915,35 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           },
         ];
         // Independent, versioned achievement save. Existing paint/unlock keys are never rewritten.
+        // Flight handling computed from real aircraft data with ONE formula for every aircraft:
+        //   wing loading (weight / wing area; rotor disk for the Black Hawk) -> fall acceleration
+        //   and maximum sink rate; maximum rate of climb -> climb strength and engine response.
+        // lift: tap climb, gravity: fall acceleration, maxSink: fastest fall,
+        // spool: response (1 = instant), hold: sustained climb speed while held.
+        const HANDLING = {
+          c130: {lift:-4.56, gravity:0.297, maxSink:4.89, spool:0.26, hold:-2.92}, // C-130J: 155,000 lb, 1,745 sq ft wing, 2,100 ft/min
+          c5: {lift:-4.72, gravity:0.32, maxSink:5.4, spool:0.25, hold:-2.89}, // C-5M: 840,000 lb, 6,200 sq ft wing, 1,800 ft/min
+          blackhawk: {lift:-4.26, gravity:0.23, maxSink:3.43, spool:0.23, hold:-2.86}, // UH-60M: 22,000 lb, 53.7 ft rotor disk, 1,553 ft/min vertical climb
+          f35: {lift:-4.4, gravity:0.307, maxSink:5.11, spool:0.56, hold:-3.51}, // F-35A: 49,540 lb, 460 sq ft wing, ~40,000 ft/min (estimate; classified)
+          f16: {lift:-4.36, gravity:0.296, maxSink:4.88, spool:0.58, hold:-3.56}, // F-16C: 26,463 lb, 300 sq ft wing, 50,000 ft/min
+          f22: {lift:-4.37, gravity:0.29, maxSink:4.74, spool:0.6, hold:-3.6}, // F-22: 64,840 lb, 840 sq ft wing, ~62,000 ft/min (estimate; classified)
+          p38: {lift:-4.16, gravity:0.274, maxSink:4.4, spool:0.34, hold:-3.09}, // P-38L: 17,500 lb, 327.5 sq ft wing, 4,750 ft/min
+          sr71: {lift:-4.24, gravity:0.294, maxSink:4.83, spool:0.43, hold:-3.27}, // SR-71: 152,000 lb, 1,800 sq ft wing, 11,820 ft/min
+          electra: {lift:-4.62, gravity:0.247, maxSink:3.82, spool:0.2, hold:-2.8}, // Model 10 Electra: 10,500 lb, 458 sq ft wing, 1,140 ft/min
+          vega: {lift:-4.48, gravity:0.24, maxSink:3.65, spool:0.21, hold:-2.83}, // Vega 5C: 4,500 lb, 275 sq ft wing, 1,300 ft/min
+          modelg: {lift:-4.32, gravity:0.21, maxSink:3.0, spool:0.2, hold:-2.8}, // Model G: no weight/wing data survives; wing loading estimated from its 51 mph cruise vs the Vega's 165 mph (same physics: wing loading ~ speed^2); weakest climb on the list
+        };
+        HANDLING.shuttle = HANDLING.p38; // Non-space shuttle keeps inheriting P-38 handling.
+        // Takeoff from real data, same formula for every aircraft:
+        //   liftoff speed ~ 1.2 x stall speed (from wing loading); acceleration from thrust-to-weight
+        //   (jets: rated thrust; props: engine power converted to propeller thrust) -> roll time,
+        //   put on one shared game time scale. runup: engines spool on the brakes (jets up to 5 s
+        //   to takeoff thrust per FAA engine certification; props ~1 s), shown at 30% of real time.
+        //   profile: jets accelerate steadily; propellers surge early, then taper as speed builds.
+        const TAKEOFF = {c130:{roll:355, runup:18, profile:"prop"}, c5:{roll:390, runup:90, profile:"jet"}, f35:{roll:262, runup:90, profile:"jet"}, f16:{roll:231, runup:90, profile:"jet"}, f22:{roll:228, runup:90, profile:"jet"}, p38:{roll:269, runup:18, profile:"prop"}, sr71:{roll:316, runup:90, profile:"jet"}, electra:{roll:237, runup:18, profile:"prop"}, vega:{roll:219, runup:18, profile:"prop"}, modelg:{roll:120, runup:18, profile:"prop"}};
+        TAKEOFF.shuttle = TAKEOFF.p38;
+        const TAKEOFF_CLIMBOUT = 110;
+        const llMod = (a, n) => ((a % n) + n) % n;
         const LL_ACH_KEY = "lockheed-achievements-v1";
         const LL_ACH_IDS = PLANES.map(p => p.id).concat("lampreyUAV");
         const LL_MILESTONES = [1,10,25,50,100,150,250];
@@ -1710,6 +1739,10 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           score = 0;
           landingFrames = 0;
           takeoffFrames = 0;
+          llTakeoff = null;
+          llRotorRate = 1;
+          player.spoolFrames = 0;
+          if (worldSelect.value !== "space" && !inLamprey()) { llTakeoff = takeoffPlan(); camera = llTakeoff.start; }
           ringsCleared = 0;
           ringsFailed = false;
           spaceBoosterDrop = null;
@@ -1761,6 +1794,57 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               : blackhawkIsNSDQ() ? "All Units Irene, I say again Irene" : `${selectedPlaneName()} cleared for take off! Click or tap to climb. Landing gear retracts after liftoff.`,
           );
         }
+        let llTakeoff = null, llTakeoffPower = 1, llRotorPhase = 0, llRotorRate = 1;
+        function takeoffPlan() {
+          const tower = groundObstacles.find(o => o.firstTower && o.type === "tower");
+          // Hand control over at the same spot as before: just before the ATC tower.
+          const L = tower ? Math.max(0, tower.x - PLANE_X - 110) : 785;
+          const v = plane.speed * worldSpeedMultiplier();
+          if (plane.id === "blackhawk") {
+            const T = 200;
+            return {heli:true, v, T, start: L - v * T / 2, groundY: player.y, gearUp: 9999};
+          }
+          const d = TAKEOFF[plane.id] || {roll:210, runup:0, profile:"jet"};
+          const T = d.roll, H = d.runup, prop = d.profile === "prop";
+          const D = prop ? v * T * 2 / 3 : v * T / 2;      // runway used before liftoff speed
+          return {v, T, H, prop, D, start: L - D - v * TAKEOFF_CLIMBOUT, gearUp: H + T + 12};
+        }
+        // ---- Controller + phone vibration ----
+        let llPad = null, llPadClimb = false, llPadStart = false;
+        function llRumble(strong, weak, ms, phoneMs) {
+          const act = llPad && llPad.vibrationActuator;
+          if (act && act.playEffect) {
+            try {
+              const p = act.playEffect("dual-rumble", {startDelay:0, duration:ms, strongMagnitude:strong, weakMagnitude:weak});
+              if (p && p.catch) p.catch(() => {});
+            } catch (_) {}
+          } else if (phoneMs && navigator.vibrate && coarsePointer.matches) {
+            try { navigator.vibrate(phoneMs); } catch (_) {}
+          }
+        }
+        function llTakeoffRumble(f, speedFrac) {
+          // Runway rumble that builds with speed (controllers only).
+          if (f % 18 === 1 && llPad && llPad.vibrationActuator) llRumble(0, 0.12 + 0.4 * speedFrac, 320, 0);
+        }
+        function pollGamepad() {
+          const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+          let gp = null;
+          for (const p of pads) if (p && p.connected) { gp = p; break; }
+          llPad = gp;
+          if (!gp) { if (llPadClimb) spaceHeld = false; llPadClimb = false; return; }
+          const b = (i) => gp.buttons[i] && (gp.buttons[i].pressed || gp.buttons[i].value > 0.35);
+          // A / Cross, right bumper or right trigger = climb. Start / Options = Fly / Restart.
+          const climb = b(0) || b(5) || b(7);
+          if (climb && !llPadClimb) { flap(); spaceHeld = state === "flying" || state === "upsideDown"; }
+          if (!climb && llPadClimb) spaceHeld = false;
+          llPadClimb = climb;
+          const start = b(9);
+          if (start && !llPadStart) {
+            if (mobileMenuOpen) closeLandscapeMenu();
+            else document.getElementById("flightAction").click();
+          }
+          llPadStart = start;
+        }
         let flightEndedAt = -Infinity;
         const END_SCREEN_LOCK_MS = 700;
         function finish(success, reason = "") {
@@ -1773,6 +1857,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           vegaReturnArmed = false;
           state = success ? "landed" : "crashed";
           flightEndedAt = performance.now();
+          if (success) llRumble(0.25, 0.55, 140, 40); else llRumble(1, 0.8, 420, [180, 60, 120]);
           llCountLanding(success ? plane.id : '__none__');
           if(!success) llCountCrash(plane.id);
           if(success && llVisitedUpsideThisRun){llEarn('upside');if(llFirstUpsideThisRun)llEarn('first_upside')}
@@ -1881,7 +1966,8 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               return;
             }
             player.fallFrames = 0;
-            player.vy = plane.lift;
+            if (state === "flying" && HANDLING[plane.id]) player.spoolFrames = 6;
+            else player.vy = plane.lift;
             // Visual-only pitch: fixed-wing aircraft raise the nose about 18 degrees;
             // the Black Hawk uses a gentler 10-degree pitch. Flight physics stay unchanged.
             player.pitch =
@@ -2174,7 +2260,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           if (world.id === "night") {
             // World 3 — open ocean at night.
             for (const dot of skyDots) {
-              const sx = dot.x - (Math.floor(camera * 0.08) % W);
+              const sx = dot.x - llMod(Math.floor(camera * 0.08), W);
               rect(sx, dot.y + 8, dot.size, dot.size, "#dbe8ef");
             }
             // Moonlight points to the Electra's hidden warp entrance. It initially
@@ -2191,7 +2277,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             rect(0, GROUND, W, H - GROUND, "#071d32");
             rect(0, GROUND, W, 5, "#315f7a");
             for(let i=-2;i<30;i++){
-              const x=i*58-(Math.floor(camera*.55)%58);
+              const x=i*58-llMod(Math.floor(camera*.55), 58);
               rect(x,GROUND+17+(i&1)*12,34,3,"#2c5873");
               rect(x+15,GROUND+43+(i%3)*9,23,2,"#173d58");
             }
@@ -2203,7 +2289,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           }
           for (const dot of skyDots)
             rect(
-              dot.x - (Math.floor(camera * 0.12) % W),
+              dot.x - llMod(Math.floor(camera * 0.12), W),
               dot.y,
               dot.size,
               dot.size,
@@ -2256,7 +2342,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             rect(0,478,W,GROUND-478,"#b49a84");
           } else {
             for (let j = -1; j < 9; j++) {
-              const x = j * 160 - (Math.floor(camera * 0.15) % 160);
+              const x = j * 160 - llMod(Math.floor(camera * 0.15), 160);
               rect(x, 422, 95, 60, world.hill);
               rect(x + 13, 410, 66, 12, "#a8c5bd");
             }
@@ -2265,14 +2351,14 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             rect(0, GROUND, W, H - GROUND, "#8e7045");
             rect(0, GROUND, W, 10, "#c0a25e");
             for (let i = -1; i < 30; i++) {
-              const x = i * 43 - (Math.floor(camera) % 43);
+              const x = i * 43 - llMod(Math.floor(camera), 43);
               rect(x, GROUND + 19, 17, 3, "#a98a50");
             }
           } else {
             rect(0, GROUND, W, H - GROUND, "#455e56");
             rect(0, GROUND, W, 10, "#70a878");
             for (let i = -1; i < 30; i++) {
-              const x = i * 43 - (Math.floor(camera) % 43);
+              const x = i * 43 - llMod(Math.floor(camera), 43);
               rect(x, GROUND + 19, 17, 3, "#658472");
             }
           }
@@ -2769,7 +2855,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
 
             const p38RunwayDistance = typeof RUNWAY_X !== "undefined" ? (RUNWAY_X - camera - PLANE_X) : 9999;
             const p38GearProgress = state === "takeoff"
-              ? Math.max(0, 1 - Math.max(0, takeoffFrames - 240) / 46)
+              ? Math.max(0, 1 - Math.max(0, takeoffFrames - (llTakeoff ? llTakeoff.gearUp : 240)) / 46)
               : state === "landed" ? 1
                 : state === "landing" ? Math.min(1, 0.55 + landingFrames / 32)
                 : state === "flying" && p38RunwayDistance < 440
@@ -2830,7 +2916,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             if (state === "takeoff" || state === "landing" || state === "landed" ||
                 (state === "flying" && RUNWAY_X - camera - PLANE_X < 440)) {
               const gearProgress = state === "takeoff"
-                ? Math.max(0, 1 - Math.max(0, takeoffFrames - 240) / 46)
+                ? Math.max(0, 1 - Math.max(0, takeoffFrames - (llTakeoff ? llTakeoff.gearUp : 240)) / 46)
                 : state === "landed" ? 1
                 : state === "landing" ? Math.min(1, 0.55 + landingFrames / 32)
                 : Math.max(0, Math.min(1, (440 - (RUNWAY_X - camera - PLANE_X)) / 260));
@@ -2892,7 +2978,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             if (climbBurst) drawShuttleRcsBurst(45.0, 8.8, 1, "hold");
             if (releaseBurst) drawShuttleRcsBurst(45.2, -8.6, -1, "release");
             // Three main engine plumes.
-            const plume = 11 + (Math.floor(camera / 14) % 5);
+            const plume = 11 + llMod(Math.floor(camera / 14), 5);
             polygon([
               [-60,-8],[-60-plume,-6],[-60,-4]
             ], "#f4a13b");
@@ -2913,7 +2999,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             const runwayDistance = RUNWAY_X - camera - PLANE_X;
             const gearProgress = state === "landed" || state === "landing"
               ? 1
-              : state === "takeoff" && getWorldConfig().id !== "space" ? Math.max(0, 1 - Math.max(0, takeoffFrames - 210) / 85)
+              : state === "takeoff" && getWorldConfig().id !== "space" ? Math.max(0, 1 - Math.max(0, takeoffFrames - (llTakeoff ? llTakeoff.gearUp - 30 : 210)) / 85)
               : state === "flying"
                 ? Math.max(0, Math.min(1, (600 - runwayDistance) / 330))
                 : 0;
@@ -3166,12 +3252,12 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             }
             // The supplied artwork already includes blurred rotor blades. Overlay
             // a narrow moving glint to retain the existing animated-rotor effect.
-            const rotorPhase = performance.now() * 0.078;
+            const rotorPhase = llRotorPhase;
             const rotorWidth = 0.22 + 0.78 * Math.abs(Math.cos(rotorPhase));
             ctx.save();
             ctx.globalAlpha = 0.46;
             rect(11 - 35 * rotorWidth, -7, 72 * rotorWidth, 1, "#20272b");
-            const tailPhase = performance.now() * 0.088;
+            const tailPhase = llRotorPhase * 1.13;
             const tailExtent = 2 + 6 * Math.abs(Math.sin(tailPhase));
             rect(-52, -9 - tailExtent, 1, tailExtent * 2, "#2b3234");
             rect(-52 - tailExtent, -9, tailExtent * 2, 1, "#2b3234");
@@ -3271,7 +3357,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
                (state === "flying" && RUNWAY_X - camera - PLANE_X < 440))) {
             ctx.save();
             const gearProgress = state === "takeoff"
-              ? Math.max(0,1-Math.max(0,takeoffFrames-240)/46)
+              ? Math.max(0,1-Math.max(0,takeoffFrames-(llTakeoff ? llTakeoff.gearUp : 240))/46)
               : state === "landed" ? 1
                 : state === "landing" ? Math.min(1,0.55+landingFrames/32)
                 : Math.max(0,Math.min(1,(440-(RUNWAY_X-camera-PLANE_X))/260));
@@ -4193,7 +4279,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           if (state !== "takeoff") return;
           const night = getWorldConfig().id === "night";
           rect(0,GROUND-2,W,12,night?"#263746":"#354553");
-          for(let x=-((camera*0.9)%105);x<W;x+=105)
+          for(let x=-llMod(camera*0.9,105);x<W;x+=105)
             rect(x,GROUND+3,52,3,"#f5df9b");
           // ATC tower and relocated DARB hangar are stationary world objects,
           // rendered below in departureAirportStructures().
@@ -4629,6 +4715,9 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         }
         function update() {
           if (mobileMenuOpen) { climbHeld = false; spaceHeld = false; return; }
+          llRotorPhase += 1.3 * llRotorRate;
+          // After shutdown the rotor winds down over several seconds.
+          if (state === "landed" && plane.id === "blackhawk") llRotorRate = Math.max(0.1, llRotorRate * 0.993);
           if (state === "upsideDown") {
             upsideFrames++;
             // The Electra remains upright; the night scenery is mirrored vertically.
@@ -4735,20 +4824,64 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           }
           if (state === "takeoff") {
             takeoffFrames++;
-            // Longer runway roll so the player clearly reads the takeoff sequence.
-            player.pitch = takeoffFrames > ((plane.id === "f22" || plane.id === "f16") ? 170 : 210) ? -0.10 : 0;
-            // Reach liftoff just before the employee-number tower, independent
-            // of aircraft speed. Preserve the existing five-second takeoff.
-            const employeeTower = groundObstacles.find(o => o.firstTower && o.type === "tower");
-            const liftoffCamera = employeeTower
-              ? Math.max(0, employeeTower.x - PLANE_X - 110)
-              : 785;
-            camera = liftoffCamera * Math.min(1, takeoffFrames / 300);
-            const rotationFrame = (plane.id === "f22" || plane.id === "f16") ? 170 : 210;
-            if (takeoffFrames > rotationFrame) {
-              player.y -= Math.min(2.2,0.08 + (takeoffFrames-rotationFrame)*0.048);
+            const tp = llTakeoff || (llTakeoff = takeoffPlan());
+            const f = takeoffFrames;
+            const ease = (v) => { const t = Math.max(0, Math.min(1, v)); return t*t*(3-2*t); };
+            if (tp.heli) {
+              // UH-60 departure: rotor to flight RPM, lift to a ~10 ft hover, hover check,
+              // then lower the nose and accelerate forward into a climb. (Sprite scale ~2 px per ft.)
+              const spin = 40, lift = 50, check = 30, accel = tp.T;
+              const groundY = tp.groundY, hoverY = groundY - 20;
+              if (f <= spin) {
+                camera = tp.start; player.pitch = 0;
+                llRotorRate = 0.35 + 0.65 * ease(f / spin);
+              } else if (f <= spin + lift) {
+                camera = tp.start; llRotorRate = 1;
+                player.y = groundY - 20 * ease((f - spin) / lift);
+                player.pitch = 0;
+              } else if (f <= spin + lift + check) {
+                camera = tp.start;
+                player.y = hoverY + Math.sin((f - spin - lift) * 0.21) * 0.8;
+                player.pitch = 0;
+              } else {
+                const t = f - spin - lift - check;
+                camera = tp.start + 0.5 * (tp.v / accel) * t * t;
+                player.y = hoverY - 140 * ease(t / accel);
+                // Nose down ~8 degrees to accelerate, easing back toward level at speed.
+                player.pitch = 0.14 * ease(t / 30) * (1 - 0.8 * ease((t - 60) / (accel - 60)));
+              }
+              llTakeoffRumble(f, Math.min(1, f / (spin + lift)));
+              if (f >= spin + lift + check + accel) {
+                state = "flying"; player.vy = -0.6; player.pitch = 0;
+                setMessage(blackhawkIsNSDQ() ? "All Units Irene, I say again Irene" : "Airborne! Hold to climb; release to descend.");
+              }
+              return;
             }
-            if (takeoffFrames >= 300) {
+            // 1) Brakes set: engines spool up while the aircraft holds still.
+            const u = f - tp.H;
+            if (u <= 0) {
+              camera = tp.start; player.pitch = 0;
+              llTakeoffPower = tp.H ? f / tp.H : 1;
+              if (f === 1 && tp.H > 30) setMessage("Brakes set, engines spooling up...");
+              if (f % 18 === 1) llRumble(0.25 * llTakeoffPower, 0.15 + 0.45 * llTakeoffPower, 320, 0);
+              return;
+            }
+            if (u === 1 && tp.H > 30) setMessage("Brakes released! Rolling...");
+            llTakeoffPower = 1;
+            // 2) Roll: jets accelerate steadily; propellers surge early and taper.
+            if (u <= tp.T) {
+              camera = tp.start + (tp.prop
+                ? tp.v * (u - tp.T / 3 * (1 - Math.pow(1 - u / tp.T, 3)))
+                : 0.5 * (tp.v / tp.T) * u * u);
+            } else camera = tp.start + tp.D + tp.v * (u - tp.T);
+            // 3) Rotate just before liftoff speed, then climb out at flight speed.
+            const rotateAt = tp.T - 18;
+            if (u > rotateAt) {
+              player.pitch += (-0.10 - player.pitch) * 0.12;
+              player.y -= Math.min(1.9, 0.08 + (u - rotateAt) * 0.048);
+            } else player.pitch = 0;
+            llTakeoffRumble(u, Math.min(1, u / tp.T));
+            if (u >= tp.T + TAKEOFF_CLIMBOUT) {
               state = "flying";
               player.vy = -2.0;
               player.pitch = -0.15;
@@ -4763,33 +4896,36 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               // level into a hover, then begin vertical descent. No rollout.
               const surface = landingSurfaceY();
               const contactY = surface - plane.h * 0.42;
-              const hoverY = contactY - 62;
+              // UH-60 arrival: decelerating approach in a ~15 degree nose-up flare, level off into a
+              // ~10 ft hover, hover briefly, then set down tail wheel first and settle onto the mains.
+              const hoverY = contactY - 20;
               const clamp01 = (v) => Math.max(0, Math.min(1, v));
               const ease = (v) => { const t = clamp01(v); return t*t*(3-2*t); };
               const f = landingFrames;
-              if (f <= 80) {
-                // Keep forward motion visible throughout the nose-up braking phase.
-                const decel = ease(f / 80);
-                camera += plane.speed * worldSpeedMultiplier() * (1 - .94*decel) * .78;
-                player.y += (hoverY - player.y) * .055;
-                // A clear 27-degree flare, rather than the barely-visible 11 degrees.
-                player.pitch = -0.47 * ease(f / 18);
-              } else if (f <= 115) {
-                // Finish braking and rotate back to level before descent starts.
-                camera += plane.speed * worldSpeedMultiplier() * .025;
+              const fwd = plane.speed * worldSpeedMultiplier();
+              if (f <= 90) {
+                const decel = ease(f / 90);
+                camera += fwd * (1 - .94 * decel) * .78;
+                player.y += (hoverY - player.y) * .05;
+                player.pitch = -0.26 * ease(f / 18) * (1 - 0.35 * ease((f - 60) / 30));
+              } else if (f <= 125) {
+                camera += fwd * .025 * (1 - ease((f - 90) / 35));
                 player.y += (hoverY - player.y) * .12;
-                player.pitch = -0.47 * (1-ease((f-80)/35));
-              } else if (f <= 200) {
-                // Vertical descent is a separate phase: helicopter remains level.
-                const descentY = hoverY + (contactY-hoverY)*ease((f-115)/85);
-                player.y += (descentY-player.y) * .27;
+                player.pitch = -0.17 * (1 - ease((f - 90) / 35));
+              } else if (f <= 150) {
+                player.y = hoverY + Math.sin((f - 125) * 0.21) * 0.8;
                 player.pitch = 0;
+              } else if (f <= 195) {
+                // Slightly nose-up so the tail wheel touches first.
+                const k = ease((f - 150) / 45);
+                player.y = hoverY + (contactY - 2 - hoverY) * k;
+                player.pitch = -0.05 * k;
               } else {
-                player.y += (contactY-player.y)*.3;
-                player.pitch = 0;
+                player.y += (contactY - player.y) * .3;
+                player.pitch *= 0.8;
               }
               player.vy = 0;
-              if (f >= 220) {
+              if (f >= 225) {
                 player.y = contactY;
                 player.pitch = 0;
                 finish(true);
@@ -4920,27 +5056,29 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             // Transport glide: the C-130 and C-5 keep forward momentum and
             // settle into a controllable descent when power-to-climb is released.
             // Other aircraft retain their original flight handling.
-            const transportGlide = plane.id === "c130" || plane.id === "c5";
-            if (transportGlide) {
-              const glideAcceleration = plane.id === "c130" ? 0.16 : 0.18;
-              const glideSinkRate = plane.id === "c130" ? 3.1 : 3.5;
-              if (climbHeld || spaceHeld) {
-                // C-130: restore stronger climb authority without changing the C-5.
-                // Release still transitions into the quicker ring-approach glide.
-                player.vy = plane.id === "c130"
-                  ? Math.max(-3.2, player.vy - 0.19)
-                  : Math.max(-3.2, player.vy + plane.gravity - 0.38);
+            const handling = HANDLING[plane.id];
+            const held = climbHeld || spaceHeld;
+            if (handling) {
+              // Climb kick from a tap: eases in at this engine's response speed.
+              if (player.spoolFrames > 0) {
+                player.vy += (handling.lift - player.vy) * handling.spool;
+                player.spoolFrames--;
+              }
+              if (held) {
+                // Holding settles into this aircraft's sustained climb speed.
+                if (!(player.spoolFrames > 0))
+                  player.vy += (handling.hold - player.vy) * handling.spool * 0.3;
+              } else if (player.vy < 0) {
+                // Still rising: a little hang time near the top of the climb.
+                player.vy += handling.gravity * (player.vy > -1 ? 0.75 : 1);
               } else {
-                // Preserve a glide but permit a quicker descent between approach rings.
-                player.vy = player.vy > glideSinkRate
-                  ? Math.max(glideSinkRate, player.vy - 0.16)
-                  : Math.min(glideSinkRate, player.vy + glideAcceleration);
+                // Falling: drag eases the aircraft toward its own maximum sink rate,
+                // so heavy jets fall faster than light props without dropping like rocks.
+                player.vy += (handling.maxSink - player.vy) * (handling.gravity / handling.maxSink);
               }
             } else {
               player.vy = Math.min(7.3, player.vy + plane.gravity);
-              if (climbHeld || spaceHeld) {
-                player.vy = Math.max(-3.2, player.vy - 0.38);
-              }
+              if (held) player.vy = Math.max(-3.2, player.vy - 0.38);
             }
             player.fallFrames = player.vy > 0 ? (player.fallFrames || 0) + 1 : 0;
             // Visual-only gentle descending attitude, inspired by the Electra
@@ -5705,7 +5843,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           const atlantaFlames = state === "flying" && atlantaBoostFactor > 1.005;
           if ((state === "takeoff" && ["f22", "f35", "f16"].includes(plane.id)) || atlantaFlames) {
             const pulse = atlantaFlames ? atlantaBoostFrames : takeoffFrames;
-            const power = atlantaFlames ? Math.min(1, (atlantaBoostFactor - 1) / .24) : Math.min(1, (pulse + 8) / 32);
+            const power = atlantaFlames ? Math.min(1, (atlantaBoostFactor - 1) / .24) : Math.max(0.12, llTakeoffPower) * Math.min(1, (pulse + 8) / 32);
             const length = (19 + (pulse % 6) * 2 + Math.sin(pulse * 0.41) * 4) * power;
             const rearX = -plane.w * (plane.id === "f16" ? 0.46 : 0.48);
             ctx.save();
@@ -5730,6 +5868,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             preview ? 0 : player.pitch || 0,
           );
           drawTouchdownSmoke();
+          drawRotorWash();
           if (preview) {
             rect(273, 174, 414, 157, "#172a40");
             label("LOCKHEED LANDER", 480, 216, 29, "#ffdf88", "center");
@@ -5767,6 +5906,30 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         }
         // Small, visible tire puffs on main-gear runway contact, excluding Black Hawk.
         // They follow the runway (not the rotating fuselage), then dissipate aft.
+        function drawRotorWash() {
+          if (plane.id !== "blackhawk" || !["takeoff", "landing", "landed"].includes(state)) return;
+          const worldId = getWorldConfig().id;
+          const surface = state === "takeoff" && llTakeoff && llTakeoff.heli
+            ? llTakeoff.groundY + plane.h * 0.42 : landingSurfaceY();
+          const height = Math.max(0, surface - (player.y + plane.h * 0.42));
+          const rotor = state === "landed" ? Math.max(0, (llRotorRate - 0.1) / 0.9) : Math.min(1, llRotorRate);
+          const strength = Math.max(0, 1 - height / 105) * rotor;
+          if (strength < 0.03) return;
+          const color = worldId === "night" ? "#dfeaf1" : worldId === "ftw" ? "#cdab70" : "#bfc3b2";
+          const t = performance.now() * 0.001;
+          ctx.save();
+          ctx.fillStyle = color;
+          for (let i = 0; i < 16; i++) {
+            const side = i % 2 ? 1 : -1;
+            const phase = (t * 1.6 + i * 0.137) % 1;
+            const r = 3 + phase * 9;
+            const x = PLANE_X + 11 + side * (14 + phase * 95 * strength);
+            const y = surface - 3 - phase * 10 - (i % 3) * 2;
+            ctx.globalAlpha = 0.62 * strength * (1 - phase);
+            ctx.fillRect(Math.round(x - r), Math.round(y - r * 0.5), Math.round(r * 2), Math.round(r));
+          }
+          ctx.restore();
+        }
         function drawTouchdownSmoke() {
           if (plane.id === "blackhawk" || state !== "landing") return;
           const t = landingFrames;
@@ -5807,6 +5970,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           );
           lastTime = now;
           let steps = 0;
+          pollGamepad();
           while (accumulator >= 1000 / 60 && steps++ < 5) {
             update();
             accumulator -= 1000 / 60;
