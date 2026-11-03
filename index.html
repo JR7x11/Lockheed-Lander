@@ -139,6 +139,9 @@
         line-height: 1.5;
         font-size: 13px;
       }
+      #llModeNote { flex: 1 1 100%; font-size: 12px; line-height: 1.45; color: #ffdf94; min-height: 1.2em; }
+      #llModeNote .warn { color: #ff9d7a; }
+      #llModeNote .ok { color: #9be39f; }
       #suttonwareFooterCredit { color: #ff69b4 !important; }
       /* Model G silent-film treatment; animation does not alter game physics. */
       body.model-g-film #game { filter: grayscale(1) contrast(1.18) brightness(.91); }
@@ -451,6 +454,22 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             >Paint scheme<select id="paint">
               <option value="0">Green & Silver</option>
             </select></label>
+          <label>Difficulty<select id="llMode">
+              <option value="rookie">Rookie (practice)</option>
+              <option value="pilot">Pilot</option>
+              <option value="ace">Ace</option>
+            </select></label>
+          <label>Traffic<select id="llTraffic">
+              <option value="slow">Slow</option>
+              <option value="normal">Normal</option>
+              <option value="fast">Fast</option>
+            </select></label>
+          <label>Wind<select id="llWind">
+              <option value="calm">Calm</option>
+              <option value="breezy">Breezy</option>
+              <option value="gusty">Gusty</option>
+            </select></label>
+          <div id="llModeNote" role="status"></div>
           <label id="lampreySkinLabel" style="display:none">Lamprey skin<select id="lampreySkin">
             <option value="yellow">Factory Yellow</option>
             <option value="shark" disabled>Shark — unlock all drone paints</option>
@@ -535,7 +554,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           mobileMenuOpen = true;
           menuOpenedAt = performance.now();
           pausedFlightState = state === "flying" || state === "landing" ? state : null;
-          menuOriginalSelection = [worldSelect.value, aircraftSelect.value, paintSelect.value];
+          menuOriginalSelection = [worldSelect.value, aircraftSelect.value, paintSelect.value, llSettings.mode, llSettings.traffic, llSettings.wind];
           document.body.classList.add("landscape-menu-open");
           mobileMenuButton.setAttribute("aria-expanded", "true");
           worldSelect.disabled = false;
@@ -547,7 +566,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         function closeLandscapeMenu() {
           if (!mobileMenuOpen) return;
           const changed = menuOriginalSelection &&
-            [worldSelect.value, aircraftSelect.value, paintSelect.value].some((v, i) => v !== menuOriginalSelection[i]);
+            [worldSelect.value, aircraftSelect.value, paintSelect.value, llSettings.mode, llSettings.traffic, llSettings.wind].some((v, i) => v !== menuOriginalSelection[i]);
           mobileMenuOpen = false;
           document.body.classList.remove("landscape-menu-open");
           mobileMenuButton.setAttribute("aria-expanded", "false");
@@ -963,6 +982,33 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           shuttle: {halfW:59.8, halfH:13.0, offY:-4.0},
           lampreyUAV: {halfW:45.5, halfH:8.0, offY:0.0}
         };
+        // ---- Difficulty settings ----
+        const LL_SETTINGS_KEY = "lockheed-settings-v1", LL_SCHOOL_KEY = "lockheed-flightschool-v1";
+        const LL_MODE_TRAFFIC = {rookie: "slow", pilot: "normal", ace: "fast"};      // each mode's default traffic
+        const LL_TRAFFIC_RANK = {slow: 0, normal: 1, fast: 2};
+        const LL_TRAFFIC_SPEED = {slow: 0.6, normal: 1, fast: 1.6};               // Cessna / helicopter patrol speed
+        // Wind: gust strength (px/frame^2, gravity is ~0.29), quiet time between gusts (frames), gust length.
+        const LL_WIND = {
+          calm: null,
+          breezy: {amp: 0.10, quietMin: 150, quietMax: 300, len: 45, turbulence: 0},
+          gusty:  {amp: 0.20, quietMin: 90,  quietMax: 210, len: 60, turbulence: 0.03},
+        };
+        const LL_ROOKIE_AIRCRAFT = ["c130", "f16"], LL_ROOKIE_WORLDS = ["darb", "lamprey"];
+        const LL_LOCK_SUFFIX = " — Pilot or Ace";
+        let llSettings = {mode: "pilot", traffic: "normal", wind: "calm"};
+        let llFlight = {...llSettings};            // settings locked in when a flight starts
+        let llSchool = {c130: false, f16: false, lamprey: false, graduated: true};
+        let llLastFlightPractice = false;
+        let llWindPhase = "idle", llWindTimer = 120, llWindT = 0, llWindDirY = 1, llWindDirX = 1, llWindForce = 0;
+        function llSaveSettings() {
+          try { localStorage.setItem(LL_SETTINGS_KEY, JSON.stringify(llSettings)); } catch (_) {}
+          try { localStorage.setItem(LL_SCHOOL_KEY, JSON.stringify(llSchool)); } catch (_) {}
+        }
+        // Rewards count only in Pilot/Ace with no setting lowered below that mode's default.
+        function llRewardsOn() {
+          if (llFlight.mode === "rookie") return false;
+          return LL_TRAFFIC_RANK[llFlight.traffic] >= LL_TRAFFIC_RANK[LL_MODE_TRAFFIC[llFlight.mode]];
+        }
         const LL_ACH_KEY = "lockheed-achievements-v1";
         const LL_ACH_IDS = PLANES.map(p => p.id).concat("lampreyUAV");
         const LL_MILESTONES = [1,10,25,50,100,150,250];
@@ -1022,6 +1068,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         let llFlightAwards=[];
         function llSave(){try{localStorage.setItem(LL_ACH_KEY,JSON.stringify(llAchievements))}catch(_){}}
         function llEarn(id){
+          if(!llRewardsOn())return false;
           if(llAchievements.earned[id] || !LL_REGISTRY.some(a=>a.id===id))return false;
           llAchievements.earned[id]=Date.now();llSave();
           const item=LL_REGISTRY.find(a=>a.id===id);llFlightAwards.push(item.name);
@@ -1099,7 +1146,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           return camera + PLANE_X >= left && camera + PLANE_X <= right;
         }
         function unlockElectra() {
-          if (electraUnlocked) return;
+          if (electraUnlocked || !llRewardsOn()) return;
           electraUnlocked = true;
           try { localStorage.setItem(ELECTRA_KEY,"1"); } catch (_) {}
           refreshElectraOption();
@@ -1307,6 +1354,9 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         // About this many seconds of flying between takeoff and the landing approach, for every aircraft.
         // Faster aircraft get longer courses. Never shorter than the original 15-slot course.
         const LEVEL_FLIGHT_SECONDS = 60;
+        function llLandmarkSlot(i) {
+          return i <= 1 ? i : Math.round(1 + (i - 1) * (COUNT - 2) / 13);
+        }
         function llSetCourseLength() {
           const v = (plane ? plane.speed : 3.7275) * worldSpeedMultiplier();
           const fixed = START_X + 220 + 1400;
@@ -1422,16 +1472,18 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               : Array.from(
                   { length: COUNT },
                   (_, i) =>
-                    world.id === "ftw" && i === 6
+                    world.id === "ftw" && i === llLandmarkSlot(6)
                       ? "attStadium"
-                      : world.id === "darb" && (i === 3 || i === 14)
+                      : world.id === "darb" && (i === llLandmarkSlot(3) || i === COUNT - 1)
                       ? "antennas"
-                      : world.id === "darb" && i === 7
+                      : world.id === "darb" && i === llLandmarkSlot(7)
                         ? "truistTke"
-                        : world.id === "darb" && i === 8
+                        : world.id === "darb" && i === llLandmarkSlot(7) + 1
                           ? "constructionCrane"
+                          : world.id === "darb" && i === llLandmarkSlot(12)
+                            ? "kennesawMountain"
                           : world.id === "darb" && baseObstacleTypes[i % baseObstacleTypes.length] === "mountain"
-                            ? (i === 12 ? "kennesawMountain" : "antennas")
+                            ? "antennas"
                             : baseObstacleTypes[i % baseObstacleTypes.length],
                 );
 
@@ -1488,8 +1540,10 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
                       : 377,
           })).filter((o, i) =>
             !(world.id === "darb" && i === 0 && o.type === "hangar") &&
-            !(world.id === "darb" && o.type === "hangar" && obstacleTypes[i-1] === "kennesawMountain") &&
-            !(world.id === "ftw" && (i === 5 || i === 7)) &&
+            !(world.id === "darb" && obstacleTypes[i-1] === "kennesawMountain") &&
+            !(world.id === "ftw" && Math.abs(i - llLandmarkSlot(6)) === 1) &&
+            !((world.id === "darb" || world.id === "ftw") && i === llLandmarkSlot(4)) &&
+            !(world.id === "ftw" && i === llLandmarkSlot(11)) &&
             !(world.id === "night" && i >= 3 && (o.x > RUNWAY_X - 3130 ||
               Math.abs(o.x - (START_X + 520 + SPACING * 10.8)) < 260 ||
               Math.abs(o.x - (START_X + 520 + SPACING * 8.7)) < 200))
@@ -1507,10 +1561,18 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           }
           return obstacles;
         }
+        let llLandmarks = [];
+        function makeWorldLandmarks() {
+          const first = makeWorldLandmark();
+          if (!first) return [];
+          const list = [first];
+          if (first.type === "boot") list.push({...first, x: START_X + llLandmarkSlot(11) * SPACING + 120});
+          return list;
+        }
         function makeWorldLandmark() {
           const world = getWorldConfig();
           if (!world.landmark) return null;
-          const base = START_X + 4 * SPACING + 120;
+          const base = START_X + llLandmarkSlot(4) * SPACING + 120;
           if (world.landmark === "bigChicken")
             return {
               type: "bigChicken",
@@ -1576,9 +1638,13 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             streak = 0,
             planeColors = 0,
             heliColors = 0;
+          const tkeX = START_X + llLandmarkSlot(7) * SPACING;
           const slots = [];
           for (let slot = 0; START_X + slot * (SPACING + 45) + 205 <= RUNWAY_X - 1195; slot += 2) slots.push(slot);
           const yLevels = [58, 186, 112, 220, 96, 164, 70, 208];
+          const blimpSlot = slots.reduce((best, sl) =>
+            Math.abs(START_X + sl * (SPACING + 45) + 115 - (tkeX - 25)) <
+            Math.abs(START_X + best * (SPACING + 45) + 115 - (tkeX - 25)) ? sl : best, slots[0]);
           const aircraft = slots.map((slot, i) => {
             let type = Math.random() < 0.5 ? "lightplane" : "helicopter";
             if (streak >= 2)
@@ -1588,13 +1654,13 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             const color =
               type === "lightplane" ? planeColors++ % 2 : heliColors++ % 2;
             return {
-              x: START_X + slot * (SPACING + 45) + (world.id === "darb" && slot === 6 ? 115 : 205),
+              x: world.id === "darb" && slot === blimpSlot ? tkeX - 25 : START_X + slot * (SPACING + 45) + 205,
               // Lower and smaller: leaves an upper flight corridor for the C-5.
-              y: world.id === "darb" && slot === 6 ? 215 : yLevels[i % yLevels.length],
-              type: world.id === "darb" && slot === 6 ? "blimp" : type,
+              y: world.id === "darb" && slot === blimpSlot ? 215 : yLevels[i % yLevels.length],
+              type: world.id === "darb" && slot === blimpSlot ? "blimp" : type,
               color,
-              width: world.id === "darb" && slot === 6 ? 82 : type === "lightplane" ? 60 : 42,
-              height: world.id === "darb" && slot === 6 ? 34 : type === "lightplane" ? 32 : 28,
+              width: world.id === "darb" && slot === blimpSlot ? 82 : type === "lightplane" ? 60 : 42,
+              height: world.id === "darb" && slot === blimpSlot ? 34 : type === "lightplane" ? 32 : 28,
             };
           });
           // Keep ordinary roaming Cessnas out of the two dedicated approach Cessnas'
@@ -1725,6 +1791,10 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           message.textContent = text;
         }
         function newFlight() {
+          llFlight = {...llSettings};
+          llWindPhase = "idle"; llWindForce = 0; llWindT = 0;
+          llWindTimer = 120 + Math.floor(Math.random() * 120);
+          llWindDirX = Math.random() < 0.5 ? -1 : 1;
           // Restarting an unfinished flight breaks the perfect-run streak.
           if (["spaceLaunch", "takeoff", "flying", "landing", "lampreyDive", "lampreyAscend", "lampreySurface", "lampreyLaunch"].includes(state)) resetModelGStreak();
           syncVintageMode();
@@ -1763,7 +1833,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           }
           llSetCourseLength();
           groundObstacles = makeGroundObstacles();
-          worldLandmark = makeWorldLandmark();
+          llLandmarks = makeWorldLandmarks(); worldLandmark = llLandmarks[0] || null;
           const isSpaceWorld = getWorldConfig().id === "space";
           player = {
             // Place the actual near-side wheels on the runway surface (GROUND-2).
@@ -1895,6 +1965,23 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         const END_SCREEN_LOCK_MS = 700;
         function finish(success, reason = "") {
           if (!["spaceLaunch", "flying", "landing", "takeoff"].includes(state)) return;
+          llLastFlightPractice = !llRewardsOn();
+          if (llLastFlightPractice) {
+            // Practice flight: no achievements, counters, paint/aircraft unlocks or secret discoveries.
+            vegaReturnArmed = false;
+            state = success ? "landed" : "crashed";
+            flightEndedAt = performance.now();
+            if (success) llRumble(0.25, 0.55, 140, 40); else llRumble(1, 0.8, 420, [180, 60, 120]);
+            aircraftSelect.disabled = false;
+            paintSelect.disabled = false;
+            startButton.textContent = "FLY AGAIN";
+            updateWorldControlState();
+            const school = success ? llRecordFlightSchool() : "";
+            const why = llFlight.mode === "rookie" ? "Rookie practice flight — no rewards." : "A setting was lowered — no rewards this flight.";
+            setMessage(success ? `LANDED! ${why}${school}` : `FLIGHT ENDED: ${reason} Press Fly Again to retry.`);
+            llApplyModeRestrictions(); llRefreshNote();
+            return;
+          }
           const vegaAchievement = success && plane.id === "electra" && vegaReturnArmed && !vegaUnlocked;
           if (vegaAchievement) {
             vegaUnlocked = true;
@@ -2058,7 +2145,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           }
           llSetCourseLength();
           groundObstacles = makeGroundObstacles();
-          worldLandmark = makeWorldLandmark();
+          llLandmarks = makeWorldLandmarks(); worldLandmark = llLandmarks[0] || null;
           airObstacles = makeAirObstacles();
           camera = 0;
           passed = 0;
@@ -2710,11 +2797,12 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           rect(sx - 15, topY + 29, 19, 3, "#d59a66");
         }
         function drawLandmark() {
-          if (!worldLandmark) return;
-          const sx = worldLandmark.x - camera;
-          if (sx < -180 || sx > W + 180) return;
-          if (worldLandmark.type === "bigChicken") drawBigChicken(sx, GROUND);
-          else if (worldLandmark.type === "boot") drawCowboyBoot(sx, GROUND);
+          for (const L of llLandmarks) {
+            const sx = L.x - camera;
+            if (sx < -180 || sx > W + 180) continue;
+            if (L.type === "bigChicken") drawBigChicken(sx, GROUND);
+            else if (L.type === "boot") drawCowboyBoot(sx, GROUND);
+          }
         }
         // Approved Blackhawk artwork embedded in the game for offline use.
         const blackhawkSpriteImages = {};
@@ -4609,6 +4697,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               APPROACH_RINGS.forEach((ring, index) => {
                 const screenX = ring.x - camera;
                 if (screenX < -70 || screenX > W + 70) return;
+                if (index > 0 && llFlight.mode === "ace") return;
                 const cleared = index < ringsCleared;
                 const color = cleared ? "#69f3a0" : "#ffde70";
                 ctx.save();ctx.strokeStyle=color;ctx.lineWidth=6;
@@ -4652,6 +4741,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             APPROACH_RINGS.forEach((ring, index) => {
               const screenX = ring.x - camera;
               if (screenX < -70 || screenX > W + 70) return;
+                if (index > 0 && llFlight.mode === "ace") return;
               const cleared = index < ringsCleared;
               const color = cleared ? "#69f3a0" : "#ffde70";
               ctx.save();
@@ -4666,13 +4756,14 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
 
         }
         function drawWorldCollisionIcons() {
-          if (!worldLandmark) return;
-          const sx = worldLandmark.x - camera;
-          if (sx < -170 || sx > W + 170) return;
-          rect(sx - 12, GROUND - 2, 24, 5, "#f4d05f");
+          for (const L of llLandmarks) {
+            const sx = L.x - camera;
+            if (sx < -170 || sx > W + 170) continue;
+            rect(sx - 12, GROUND - 2, 24, 5, "#f4d05f");
+          }
         }
         function moveHelicopters() {
-          helicopterTick++;
+          helicopterTick += LL_TRAFFIC_SPEED[llFlight.traffic] || 1;
           if (getWorldConfig().id === "space") return;
           for (const a of airObstacles) {
             if (a.approachCessna) {
@@ -4776,8 +4867,8 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         function llObstacleReach(o) {
           return getWorldConfig().id === "night" && o.type === "oilRig" ? 96 : o.width * 0.46;
         }
-        function llLandmarkTop(rel, halfW) {
-          const L = worldLandmark, half = L.width * 0.41;
+        function llLandmarkTop(rel, halfW, L = worldLandmark) {
+          const half = L.width * 0.41;
           if (Math.abs(rel) < half + halfW) return GROUND - L.height * 1.07;
           if (L.type === "boot" && rel > 0 && rel - halfW < half + 38) return GROUND - L.height * 0.33; // toe
           return GROUND;
@@ -4879,6 +4970,166 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             top = ax < 3 + halfW ? o.top + 6 : ax < 33 + halfW ? o.top + 16 : GROUND;
           }
           return top;
+        }
+        function llWindStep() {
+          const w = LL_WIND[llFlight.wind];
+          if (!w) { llWindForce = 0; llWindPhase = "idle"; return; }
+          // Gusts are a bit stronger and more frequent once the approach begins.
+          const onFinal = camera + PLANE_X > APPROACH_RINGS[0].x - 700;
+          const amp = w.amp * (onFinal ? 1.3 : 1);
+          if (llWindPhase === "idle") {
+            llWindForce = w.turbulence ? (Math.random() - 0.5) * 2 * w.turbulence : 0;
+            if (--llWindTimer <= 0) { llWindPhase = "warn"; llWindTimer = 30; llWindDirY = Math.random() < 0.5 ? -1 : 1; }
+          } else if (llWindPhase === "warn") {
+            // ~0.5 s of windsock flutter before the gust arrives.
+            llWindForce = 0;
+            if (--llWindTimer <= 0) { llWindPhase = "gust"; llWindT = 0; }
+          } else {
+            llWindT++;
+            llWindForce = llWindDirY * amp * Math.sin(Math.PI * Math.min(1, llWindT / w.len));
+            if (llWindT >= w.len) {
+              llWindPhase = "idle";
+              const quiet = w.quietMin + Math.random() * (w.quietMax - w.quietMin);
+              llWindTimer = Math.round(quiet * (onFinal ? 0.6 : 1));
+            }
+          }
+        }
+        function llDrawWindsock(worldX, baseY) {
+          const sx = worldX - camera;
+          if (sx < -60 || sx > W + 60) return;
+          const strength = llFlight.wind === "gusty" ? 1 : llFlight.wind === "breezy" ? 0.55 : 0;
+          const busy = llWindPhase === "warn" || llWindPhase === "gust";
+          const t = performance.now() * 0.001;
+          // Calm: hangs nearly straight down. Stronger wind lifts it toward horizontal; it flutters before/during gusts.
+          let angle = (1 - strength) * 1.35 + 0.12;
+          angle += Math.sin(t * (busy ? 18 : 2.2)) * (busy ? 0.16 : 0.03 + 0.04 * strength);
+          const poleTop = baseY - 44;
+          rect(sx - 1, poleTop, 3, 44, "#5d6b73");
+          rect(sx - 3, poleTop - 2, 7, 3, "#3f4a50");
+          for (let i = 0; i < 5; i++) {
+            const d = 3 + i * 5.2, wave = busy ? Math.sin(t * 22 - i) * (1 + i * 0.5) : 0;
+            const x = sx + llWindDirX * Math.cos(angle) * d;
+            const y = poleTop + Math.sin(angle) * d + wave;
+            const h = 7 - i * 0.9;
+            rect(x - 2.6, y - h / 2, 5.2, h, i % 2 ? "#f4f1e6" : "#ef6b2f");
+          }
+        }
+        function llDrawWindsocks() {
+          const world = getWorldConfig().id;
+          if (world === "space" || inLamprey()) return;
+          if (world !== "night") llDrawWindsock(-150, GROUND);                      // departure runway, ahead of the ATC tower
+          llDrawWindsock(LANDING_RUNWAY_START - 40, world === "night" ? CARRIER_DECK_Y : GROUND); // landing threshold
+        }
+        // Rookie: only the C-130 and F-16 (Marietta) and the Lamprey mission. Idempotent; safe to call often.
+        let llRestrictionsShown = false;
+        function llApplyModeRestrictions() {
+          const rookie = llSettings.mode === "rookie";
+          if (!rookie && !llRestrictionsShown) return;
+          for (const o of [...aircraftSelect.options, ...worldSelect.options]) {
+            const isWorld = o.parentElement === worldSelect;
+            const allowed = isWorld ? LL_ROOKIE_WORLDS.includes(o.value) : LL_ROOKIE_AIRCRAFT.includes(o.value);
+            const locked = rookie && !allowed;
+            if (locked) {
+              o.disabled = true;
+              if (!o.textContent.endsWith(LL_LOCK_SUFFIX)) o.textContent += LL_LOCK_SUFFIX;
+            } else if (o.textContent.endsWith(LL_LOCK_SUFFIX)) {
+              o.textContent = o.textContent.slice(0, -LL_LOCK_SUFFIX.length);
+              o.disabled = false;
+            }
+          }
+          if (rookie) {
+            llRestrictionsShown = true;
+            const running = ["takeoff","flying","landing","spaceLaunch","upsideDown","upsideAscend","lampreyDive","lampreyAscend","lampreySurface","lampreyLaunch"].includes(state);
+            if (!running) {
+              if (!LL_ROOKIE_WORLDS.includes(worldSelect.value)) { worldSelect.value = "darb"; worldSelect.dispatchEvent(new Event("change")); }
+              if (!inLamprey() && !LL_ROOKIE_AIRCRAFT.includes(aircraftSelect.value)) { aircraftSelect.value = "c130"; aircraftSelect.dispatchEvent(new Event("change")); }
+            }
+          } else {
+            // Leaving Rookie: let the game recompute every option from the player's real unlocks.
+            llRestrictionsShown = false;
+            try { refreshAircraftOptions(); } catch (_) {}
+            try { refreshElectraOption(); refreshVegaOption(); } catch (_) {}
+            try { syncSecretSpaceWorld(); refreshLampreyAircraft(); } catch (_) {}
+          }
+        }
+        function llRecordFlightSchool() {
+          if (llFlight.mode !== "rookie" || llSchool.graduated) return "";
+          const key = inLamprey() ? "lamprey" : worldSelect.value === "darb" && LL_ROOKIE_AIRCRAFT.includes(plane.id) ? plane.id : null;
+          if (!key) return "";
+          const first = !llSchool[key];
+          llSchool[key] = true;
+          if (llSchool.c130 && llSchool.f16 && llSchool.lamprey) {
+            llSchool.graduated = true;
+            llSettings = {...llSettings, mode: "pilot", traffic: "normal"};
+            llSaveSettings(); llSyncControls(); llApplyModeRestrictions();
+            return " FLIGHT SCHOOL COMPLETE! Pilot and Ace unlocked — you're now flying as a Pilot.";
+          }
+          llSaveSettings();
+          return first ? " Flight school checkmark earned!" : "";
+        }
+        function llSyncControls() {
+          const modeSel = document.getElementById("llMode");
+          for (const o of modeSel.options) {
+            if (o.value === "rookie") continue;
+            o.disabled = !llSchool.graduated;
+            const base = o.value === "pilot" ? "Pilot" : "Ace";
+            o.textContent = llSchool.graduated ? base : `${base} — finish flight school`;
+          }
+          modeSel.value = llSettings.mode;
+          document.getElementById("llTraffic").value = llSettings.traffic;
+          document.getElementById("llWind").value = llSettings.wind;
+          llRefreshNote();
+        }
+        function llRefreshNote() {
+          const note = document.getElementById("llModeNote");
+          if (!note) return;
+          const s = llSettings, lowered = s.mode !== "rookie" && LL_TRAFFIC_RANK[s.traffic] < LL_TRAFFIC_RANK[LL_MODE_TRAFFIC[s.mode]];
+          if (s.mode === "rookie") {
+            const tick = (k) => llSchool[k] ? "✓" : "○";
+            note.innerHTML = llSchool.graduated
+              ? "Rookie: practice mode — no achievements, unlocks or counts."
+              : `Rookie flight school — practice mode, no rewards. Land each to unlock Pilot and Ace: ` +
+                `<span class="${llSchool.c130 ? "ok" : ""}">${tick("c130")} C-130</span> · ` +
+                `<span class="${llSchool.f16 ? "ok" : ""}">${tick("f16")} F-16</span> · ` +
+                `<span class="${llSchool.lamprey ? "ok" : ""}">${tick("lamprey")} Lamprey</span>`;
+          } else if (lowered) {
+            note.innerHTML = `<span class="warn">Traffic is below the ${s.mode === "ace" ? "Ace" : "Pilot"} default — flights earn no achievements, unlocks or counts.</span>`;
+          } else {
+            note.textContent = s.mode === "ace" ? "Ace: fast traffic and only the first approach ring — land the rest by eye." : "Pilot: the standard game. Full rewards.";
+          }
+        }
+        function llInitSettings() {
+          // Existing players (any saved progress) skip flight school.
+          let saved = null, school = null;
+          try { saved = JSON.parse(localStorage.getItem(LL_SETTINGS_KEY) || "null"); } catch (_) {}
+          try { school = JSON.parse(localStorage.getItem(LL_SCHOOL_KEY) || "null"); } catch (_) {}
+          if (school) llSchool = {...llSchool, ...school};
+          else {
+            let paints = {}; try { paints = JSON.parse(localStorage.getItem("flappy-plane-paints-v1") || "{}"); } catch (_) {}
+            const hasProgress = Object.values(paints).some(v => Number(v) >= 2) ||
+              Object.keys(llAchievements.earned).length > 0 ||
+              Object.values(llAchievements.landings).some(v => Number(v) > 0) ||
+              electraUnlocked || vegaUnlocked || modelGUnlocked;
+            llSchool = {c130: false, f16: false, lamprey: false, graduated: hasProgress};
+          }
+          if (saved && LL_MODE_TRAFFIC[saved.mode] && LL_TRAFFIC_RANK[saved.traffic] !== undefined && saved.wind in LL_WIND) llSettings = saved;
+          else llSettings = llSchool.graduated ? {mode: "pilot", traffic: "normal", wind: "calm"} : {mode: "rookie", traffic: "slow", wind: "calm"};
+          if (!llSchool.graduated) llSettings.mode = "rookie";
+          llFlight = {...llSettings};
+          llSaveSettings(); llSyncControls(); llApplyModeRestrictions();
+          const onChange = (apply) => (e) => {
+            apply(e.target.value);
+            llSaveSettings(); llSyncControls(); llApplyModeRestrictions();
+            const running = ["takeoff","flying","landing","spaceLaunch","upsideDown","upsideAscend","lampreyDive","lampreyAscend","lampreySurface","lampreyLaunch"].includes(state);
+            if (running && !mobileMenuOpen) newFlight();
+            else if (!running) llFlight = {...llSettings};
+          };
+          document.getElementById("llMode").addEventListener("change", onChange(v => { llSettings = {...llSettings, mode: v, traffic: LL_MODE_TRAFFIC[v]}; }));
+          document.getElementById("llTraffic").addEventListener("change", onChange(v => { llSettings = {...llSettings, traffic: v}; }));
+          document.getElementById("llWind").addEventListener("change", onChange(v => { llSettings = {...llSettings, wind: v}; }));
+          // Keep Rookie restrictions in place after the game's own menu refreshes.
+          worldSelect.addEventListener("change", llApplyModeRestrictions);
+          aircraftSelect.addEventListener("change", llApplyModeRestrictions);
         }
         function update() {
           if (mobileMenuOpen) { climbHeld = false; spaceHeld = false; return; }
@@ -5251,6 +5502,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               player.vy = Math.min(7.3, player.vy + plane.gravity);
               if (held) player.vy = Math.max(-3.2, player.vy - 0.38);
             }
+            if (state === "flying") { llWindStep(); player.vy += llWindForce; }
             player.fallFrames = player.vy > 0 ? (player.fallFrames || 0) + 1 : 0;
             // Visual-only gentle descending attitude, inspired by the Electra
             // in the upside-down world. No delayed or steep nosedive behavior.
@@ -5281,7 +5533,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           if (hitY + halfH > lowerBoundary) {
             if (inWarp()) {
               if (plane.id === "electra") { enterUpsideDown(); return; }
-              const newlyUnlocked = !electraUnlocked;
+              const newlyUnlocked = !electraUnlocked && llRewardsOn();
               unlockElectra();
               finish(false, newlyUnlocked ? "A strange signal rose from the water. Aircraft discovered — check the menu!" : "The ocean warp claimed your aircraft.");
               return;
@@ -5348,15 +5600,14 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               }
             }
           }
-          if (worldLandmark) {
-            const lx = worldLandmark.x - camera;
-            const dx = Math.abs(lx - PLANE_X);
+          for (const L of llLandmarks) {
+            const lx = L.x - camera;
             if (
-              hitY + halfH > llLandmarkTop(PLANE_X - lx, halfW)
+              hitY + halfH > llLandmarkTop(PLANE_X - lx, halfW, L)
             ) {
               finish(
                 false,
-                worldLandmark.type === "bigChicken"
+                L.type === "bigChicken"
                   ? "You hit the Big Chicken."
                   : "You hit the cowboy boot.",
               );
@@ -5399,7 +5650,10 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             const previousY = player.y - player.vy;
             if (!ringsFailed && ringsCleared < APPROACH_RINGS.length) {
               const gate = APPROACH_RINGS[ringsCleared];
-              if (previousNoseX < gate.x && noseX >= gate.x) {
+              if (llFlight.mode === "ace" && ringsCleared >= 1) {
+                // Ace: after ring 1 the remaining gates are invisible and count as flown.
+                if (previousNoseX < gate.x && noseX >= gate.x) ringsCleared++;
+              } else if (previousNoseX < gate.x && noseX >= gate.x) {
                 const fraction = Math.max(0, Math.min(1,
                   (gate.x - previousNoseX) / Math.max(0.0001, travel)));
                 const crossingY = previousY + (player.y - previousY) * fraction;
@@ -5409,6 +5663,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
                   ringsCleared++;
                   setMessage(ringsCleared === 3
                     ? "All three approach rings cleared! Preparing to land."
+                    : llFlight.mode === "ace" ? "Ring cleared! Now land her by eye."
                     : `Ring ${ringsCleared} cleared! Follow the next ring.`);
                 } else {
                   ringsFailed = true;
@@ -5423,7 +5678,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
                 player.vy = 0;
                 setMessage("Approach complete! Automatic landing engaged.");
               } else {
-                finish(false, "Missed approach: fly through all three rings in order.");
+                finish(false, llFlight.mode === "ace" ? "Missed approach: fly through the approach ring." : "Missed approach: fly through all three rings in order.");
               }
             }
           } else if (RUNWAY_X - camera <= PLANE_X) {
@@ -5801,6 +6056,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             if (sx > -(o.width/2+20) && sx < W + o.width/2+20) groundArt(o, sx);
           }
           drawLandmark();
+          llDrawWindsocks();
           for (const aircraft of airObstacles) {
             const sx = aircraft.x - camera;
             if (sx > -70 && sx < W + 70 && !(getWorldConfig().id === "space" && aircraft.type !== "lightplane" && aircraft.x > RUNWAY_X - 900)) airObstacleArt(aircraft, sx);
@@ -5989,6 +6245,10 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               "center",
             );
             label(state === "landed" ? "SUCCESSFUL LANDING" : "TRY AGAIN", 480, 256, 18, "#f4efcd", "center");
+            if (llLastFlightPractice) {
+              rect(343, 275, 274, 26, "#172a40");
+              label(llFlight.mode === "rookie" ? "ROOKIE PRACTICE · NO REWARDS" : "SETTING LOWERED · NO REWARDS", 480, 293, 13, "#ffb98a", "center");
+            }
           }
           if (modelGUnlockReveal && state === "landed") {
             rect(192, 150, 576, 236, "#181818");
@@ -6100,7 +6360,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         refreshLampreyAircraft();
         syncSecretSpaceWorld();
         groundObstacles = makeGroundObstacles();
-        worldLandmark = makeWorldLandmark();
+        llLandmarks = makeWorldLandmarks(); worldLandmark = llLandmarks[0] || null;
         player = { y: 270, vy: 0, pitch: 0 };
         setMessage("Choose a plane and start your flight.");
         updateWorldControlState();
@@ -6148,6 +6408,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         worldSelect.addEventListener("change", updateTopHUD);
         // Update the HUD once per game frame, including takeoff and landing.
         updateTopHUD();
+        llInitSettings();
         requestAnimationFrame(frame);
       })();
     </script>
