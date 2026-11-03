@@ -594,8 +594,9 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           GROUND = 482,
           PLANE_X = 215;
         const START_X = 700,
-          SPACING = 410,
-          COUNT = 15,
+          SPACING = 410;
+        // Course length is set for each flight by llSetCourseLength(): COUNT obstacle slots, then the approach.
+        let COUNT = 15,
           RUNWAY_X = START_X + COUNT * SPACING + 220 + 1400; // original October 24 final approach
         const WORLD_DEFS = {
           darb: {
@@ -1298,11 +1299,24 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           {x:RUNWAY_X-740, y:GROUND-82}
         ];
         const APPROACH_RING_RADIUS = 30;
-        const APPROACH_LANDING_TRIGGER = RUNWAY_X - 585;
+        let APPROACH_LANDING_TRIGGER = RUNWAY_X - 585;
         // Extend the paved landing strip back toward Ring 3. Keep the three
         // ring positions, automatic landing timing, and runway's far end.
-        const LANDING_RUNWAY_START = RUNWAY_X - 700;
-        const LANDING_RUNWAY_END = RUNWAY_X + 2100;
+        let LANDING_RUNWAY_START = RUNWAY_X - 700;
+        let LANDING_RUNWAY_END = RUNWAY_X + 2100;
+        // About this many seconds of flying between takeoff and the landing approach, for every aircraft.
+        // Faster aircraft get longer courses. Never shorter than the original 15-slot course.
+        const LEVEL_FLIGHT_SECONDS = 60;
+        function llSetCourseLength() {
+          const v = (plane ? plane.speed : 3.7275) * worldSpeedMultiplier();
+          const fixed = START_X + 220 + 1400;
+          COUNT = Math.max(15, Math.round((v * 60 * LEVEL_FLIGHT_SECONDS - fixed) / SPACING));
+          RUNWAY_X = fixed + COUNT * SPACING;
+          [1190, 965, 740].forEach((offset, i) => { APPROACH_RINGS[i].x = RUNWAY_X - offset; });
+          APPROACH_LANDING_TRIGGER = RUNWAY_X - 585;
+          LANDING_RUNWAY_START = RUNWAY_X - 700;
+          LANDING_RUNWAY_END = RUNWAY_X + 2100;
+        }
         let ringsCleared = 0;
         let ringsFailed = false;
         let spaceBoosterDrop = null;
@@ -1400,7 +1414,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
                   "tower",
                 ]
               : world.id === "night"
-                ? ["oilRig", "oilRig", "oilRig"]
+                ? Array.from({ length: Math.max(3, Math.floor((RUNWAY_X - 3130 - (START_X + 520)) / (SPACING * 2.7))) }, () => "oilRig")
                 : groundTypes;
           const obstacleTypes =
             world.id === "night"
@@ -1417,7 +1431,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
                         : world.id === "darb" && i === 8
                           ? "constructionCrane"
                           : world.id === "darb" && baseObstacleTypes[i % baseObstacleTypes.length] === "mountain"
-                            ? "kennesawMountain"
+                            ? (i === 12 ? "kennesawMountain" : "antennas")
                             : baseObstacleTypes[i % baseObstacleTypes.length],
                 );
 
@@ -1475,7 +1489,10 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           })).filter((o, i) =>
             !(world.id === "darb" && i === 0 && o.type === "hangar") &&
             !(world.id === "darb" && o.type === "hangar" && obstacleTypes[i-1] === "kennesawMountain") &&
-            !(world.id === "ftw" && (i === 5 || i === 7))
+            !(world.id === "ftw" && (i === 5 || i === 7)) &&
+            !(world.id === "night" && i >= 3 && (o.x > RUNWAY_X - 3130 ||
+              Math.abs(o.x - (START_X + 520 + SPACING * 10.8)) < 260 ||
+              Math.abs(o.x - (START_X + 520 + SPACING * 8.7)) < 200))
           );
           if (world.id === "night") {
             obstacles.push({
@@ -1537,7 +1554,14 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               { slot: 11.5, type: "lightplane", y: 438, width: 80, height: 46 },
               { slot: 14.5, type: "helicopter", y: 422, width: 73, height: 73 },
             ];
-            return spacePattern.map((o, i) => ({
+            const fullPattern = [];
+            for (let cycle = 0; ; cycle++) {
+              const batch = spacePattern.map(o => ({...o, slot: o.slot + cycle * 15}))
+                .filter(o => START_X + o.slot * (SPACING + 32) + 205 < RUNWAY_X - 900);
+              if (!batch.length) break;
+              fullPattern.push(...batch);
+            }
+            return fullPattern.map((o, i) => ({
               x: START_X + o.slot * (SPACING + 32) + 205,
               y: o.y,
               type: o.type,
@@ -1552,7 +1576,8 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             streak = 0,
             planeColors = 0,
             heliColors = 0;
-          const slots = [0, 2, 4, 6, 8, 10, 12, 14];
+          const slots = [];
+          for (let slot = 0; START_X + slot * (SPACING + 45) + 205 <= RUNWAY_X - 1195; slot += 2) slots.push(slot);
           const yLevels = [58, 186, 112, 220, 96, 164, 70, 208];
           const aircraft = slots.map((slot, i) => {
             let type = Math.random() < 0.5 ? "lightplane" : "helicopter";
@@ -1565,7 +1590,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             return {
               x: START_X + slot * (SPACING + 45) + (world.id === "darb" && slot === 6 ? 115 : 205),
               // Lower and smaller: leaves an upper flight corridor for the C-5.
-              y: world.id === "darb" && slot === 6 ? 215 : yLevels[i],
+              y: world.id === "darb" && slot === 6 ? 215 : yLevels[i % yLevels.length],
               type: world.id === "darb" && slot === 6 ? "blimp" : type,
               color,
               width: world.id === "darb" && slot === 6 ? 82 : type === "lightplane" ? 60 : 42,
@@ -1736,6 +1761,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
               paintsFor(plane.id)[Number(paintSelect.value)] ||
               paintsFor(plane.id)[0];
           }
+          llSetCourseLength();
           groundObstacles = makeGroundObstacles();
           worldLandmark = makeWorldLandmark();
           const isSpaceWorld = getWorldConfig().id === "space";
@@ -2030,6 +2056,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             newFlight();
             return;
           }
+          llSetCourseLength();
           groundObstacles = makeGroundObstacles();
           worldLandmark = makeWorldLandmark();
           airObstacles = makeAirObstacles();
