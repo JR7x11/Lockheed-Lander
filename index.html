@@ -1910,7 +1910,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
         }
         let llTakeoff = null, llTakeoffPower = 1, llRotorPhase = 0, llRotorRate = 1;
         let llHoldFrames = 0, llAbPower = 0;
-        const AB_JETS = ["f16", "f22", "f35", "sr71"], AB_HOLD_FRAMES = 60; // 1 s of holding climb
+        const AB_JETS = ["f16", "f22", "f35", "sr71"], AB_HOLD_FRAMES = 30; // 0.5 s of holding climb
         function takeoffPlan() {
           const tower = groundObstacles.find(o => o.firstTower && o.type === "tower");
           // Hand control over at the same spot as before: just before the ATC tower.
