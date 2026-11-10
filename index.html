@@ -994,7 +994,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           lampreyUAV: {halfW:45.5, halfH:8.0, offY:0.0}
         };
         // ---- Difficulty settings ----
-        const LL_SETTINGS_KEY = "lockheed-settings-v1", LL_SCHOOL_KEY = "lockheed-flightschool-v1";
+        const LL_SETTINGS_KEY = "lockheed-settings-v1";
         const LL_MODE_TRAFFIC = {rookie: "slow", pilot: "normal", ace: "fast"};      // each mode's default traffic
         const LL_TRAFFIC_RANK = {slow: 0, normal: 1, fast: 2};
         const LL_TRAFFIC_SPEED = {slow: 0.6, normal: 1, fast: 1.6};               // Cessna / helicopter patrol speed
@@ -1004,16 +1004,14 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           breezy: {amp: 0.10, quietMin: 150, quietMax: 300, len: 45, turbulence: 0},
           gusty:  {amp: 0.20, quietMin: 90,  quietMax: 210, len: 60, turbulence: 0.03},
         };
-        const LL_ROOKIE_AIRCRAFT = ["c130", "f16"], LL_ROOKIE_WORLDS = ["darb", "lamprey"];
-        const LL_LOCK_SUFFIX = " — Pilot or Ace";
+        const LL_ROOKIE_LOCKED_WORLDS = ["night", "lamprey"];
+        const LL_LOCK_SUFFIX = " — Pilot or Ace only";
         let llSettings = {mode: "pilot", traffic: "normal", wind: "calm"};
         let llFlight = {...llSettings};            // settings locked in when a flight starts
-        let llSchool = {c130: false, f16: false, lamprey: false, graduated: true};
         let llLastFlightPractice = false;
         let llWindPhase = "idle", llWindTimer = 120, llWindT = 0, llWindDirY = 1, llWindDirX = 1, llWindForce = 0;
         function llSaveSettings() {
           try { localStorage.setItem(LL_SETTINGS_KEY, JSON.stringify(llSettings)); } catch (_) {}
-          try { localStorage.setItem(LL_SCHOOL_KEY, JSON.stringify(llSchool)); } catch (_) {}
         }
         // Rewards count only in Pilot/Ace with no setting lowered below that mode's default.
         function llRewardsOn() {
@@ -1987,9 +1985,8 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
             paintSelect.disabled = false;
             startButton.textContent = "FLY AGAIN";
             updateWorldControlState();
-            const school = success ? llRecordFlightSchool() : "";
             const why = llFlight.mode === "rookie" ? "Rookie practice flight — no rewards." : "A setting was lowered — no rewards this flight.";
-            setMessage(success ? `LANDED! ${why}${school}` : `FLIGHT ENDED: ${reason} Press Fly Again to retry.`);
+            setMessage(success ? `LANDED! ${why}` : `FLIGHT ENDED: ${reason} Press Fly Again to retry.`);
             llApplyModeRestrictions(); llRefreshNote();
             return;
           }
@@ -5070,60 +5067,31 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           if (world !== "night") llDrawWindsock(-150, GROUND);                      // departure runway, ahead of the ATC tower
           llDrawWindsock(LANDING_RUNWAY_START - 40, world === "night" ? CARRIER_DECK_Y : GROUND); // landing threshold
         }
-        // Rookie: only the C-130 and F-16 (Marietta) and the Lamprey mission. Idempotent; safe to call often.
-        let llRestrictionsShown = false;
+        // Rookie is an unrestricted-entry practice difficulty. Keep earned aircraft
+        // and paint choices, but block the Night and Lamprey/Deep Ocean worlds.
         function llApplyModeRestrictions() {
           const rookie = llSettings.mode === "rookie";
-          if (!rookie && !llRestrictionsShown) return;
-          for (const o of [...aircraftSelect.options, ...worldSelect.options]) {
-            const isWorld = o.parentElement === worldSelect;
-            const allowed = isWorld ? LL_ROOKIE_WORLDS.includes(o.value) : LL_ROOKIE_AIRCRAFT.includes(o.value);
-            const locked = rookie && !allowed;
-            if (locked) {
-              o.disabled = true;
-              if (!o.textContent.endsWith(LL_LOCK_SUFFIX)) o.textContent += LL_LOCK_SUFFIX;
-            } else if (o.textContent.endsWith(LL_LOCK_SUFFIX)) {
-              o.textContent = o.textContent.slice(0, -LL_LOCK_SUFFIX.length);
-              o.disabled = false;
-            }
+          for (const option of worldSelect.options) {
+            if (!LL_ROOKIE_LOCKED_WORLDS.includes(option.value)) continue;
+            const locked = rookie;
+            option.disabled = locked;
+            if (locked && !option.textContent.endsWith(LL_LOCK_SUFFIX))
+              option.textContent += LL_LOCK_SUFFIX;
+            else if (!locked && option.textContent.endsWith(LL_LOCK_SUFFIX))
+              option.textContent = option.textContent.slice(0, -LL_LOCK_SUFFIX.length);
           }
-          if (rookie) {
-            llRestrictionsShown = true;
-            const running = ["takeoff","flying","landing","spaceLaunch","upsideDown","upsideAscend","lampreyDive","lampreyAscend","lampreySurface","lampreyLaunch"].includes(state);
-            if (!running) {
-              if (!LL_ROOKIE_WORLDS.includes(worldSelect.value)) { worldSelect.value = "darb"; worldSelect.dispatchEvent(new Event("change")); }
-              if (!inLamprey() && !LL_ROOKIE_AIRCRAFT.includes(aircraftSelect.value)) { aircraftSelect.value = "c130"; aircraftSelect.dispatchEvent(new Event("change")); }
-            }
-          } else {
-            // Leaving Rookie: let the game recompute every option from the player's real unlocks.
-            llRestrictionsShown = false;
-            try { refreshAircraftOptions(); } catch (_) {}
-            try { refreshElectraOption(); refreshVegaOption(); } catch (_) {}
-            try { syncSecretSpaceWorld(); refreshLampreyAircraft(); } catch (_) {}
+          // Never remove unlocks or override aircraft/paint selection.
+          if (rookie && LL_ROOKIE_LOCKED_WORLDS.includes(worldSelect.value)) {
+            worldSelect.value = "darb";
+            worldSelect.dispatchEvent(new Event("change"));
           }
-        }
-        function llRecordFlightSchool() {
-          if (llFlight.mode !== "rookie" || llSchool.graduated) return "";
-          const key = inLamprey() ? "lamprey" : worldSelect.value === "darb" && LL_ROOKIE_AIRCRAFT.includes(plane.id) ? plane.id : null;
-          if (!key) return "";
-          const first = !llSchool[key];
-          llSchool[key] = true;
-          if (llSchool.c130 && llSchool.f16 && llSchool.lamprey) {
-            llSchool.graduated = true;
-            llSettings = {...llSettings, mode: "pilot", traffic: "normal"};
-            llSaveSettings(); llSyncControls(); llApplyModeRestrictions();
-            return " FLIGHT SCHOOL COMPLETE! Pilot and Ace unlocked — you're now flying as a Pilot.";
-          }
-          llSaveSettings();
-          return first ? " Flight school checkmark earned!" : "";
         }
         function llSyncControls() {
           const modeSel = document.getElementById("llMode");
-          for (const o of modeSel.options) {
-            if (o.value === "rookie") continue;
-            o.disabled = !llSchool.graduated;
-            const base = o.value === "pilot" ? "Pilot" : "Ace";
-            o.textContent = llSchool.graduated ? base : `${base} — finish flight school`;
+          for (const option of modeSel.options) {
+            option.disabled = false;
+            option.textContent = option.value === "rookie" ? "Rookie (practice)" :
+              option.value === "pilot" ? "Pilot" : "Ace";
           }
           modeSel.value = llSettings.mode;
           document.getElementById("llTraffic").value = llSettings.traffic;
@@ -5135,13 +5103,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           if (!note) return;
           const s = llSettings, lowered = s.mode !== "rookie" && LL_TRAFFIC_RANK[s.traffic] < LL_TRAFFIC_RANK[LL_MODE_TRAFFIC[s.mode]];
           if (s.mode === "rookie") {
-            const tick = (k) => llSchool[k] ? "✓" : "○";
-            note.innerHTML = llSchool.graduated
-              ? "Rookie: practice mode — no achievements, unlocks or counts."
-              : `Rookie flight school — practice mode, no rewards. Land each to unlock Pilot and Ace: ` +
-                `<span class="${llSchool.c130 ? "ok" : ""}">${tick("c130")} C-130</span> · ` +
-                `<span class="${llSchool.f16 ? "ok" : ""}">${tick("f16")} F-16</span> · ` +
-                `<span class="${llSchool.lamprey ? "ok" : ""}">${tick("lamprey")} Lamprey</span>`;
+            note.textContent = "Rookie: practice mode — no achievements, new unlocks or flight counts. Previously earned paints remain usable. Night and Deep Ocean are locked.";
           } else if (lowered) {
             note.innerHTML = `<span class="warn">Traffic is below the ${s.mode === "ace" ? "Ace" : "Pilot"} default — flights earn no achievements, unlocks or counts.</span>`;
           } else {
@@ -5149,22 +5111,14 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           }
         }
         function llInitSettings() {
-          // Existing players (any saved progress) skip flight school.
-          let saved = null, school = null;
+          // Preserve saved difficulty and all existing achievements / unlocks.
+          // The legacy flight-school key is intentionally left untouched.
+          let saved = null;
           try { saved = JSON.parse(localStorage.getItem(LL_SETTINGS_KEY) || "null"); } catch (_) {}
-          try { school = JSON.parse(localStorage.getItem(LL_SCHOOL_KEY) || "null"); } catch (_) {}
-          if (school) llSchool = {...llSchool, ...school};
-          else {
-            let paints = {}; try { paints = JSON.parse(localStorage.getItem("flappy-plane-paints-v1") || "{}"); } catch (_) {}
-            const hasProgress = Object.values(paints).some(v => Number(v) >= 2) ||
-              Object.keys(llAchievements.earned).length > 0 ||
-              Object.values(llAchievements.landings).some(v => Number(v) > 0) ||
-              electraUnlocked || vegaUnlocked || modelGUnlocked;
-            llSchool = {c130: false, f16: false, lamprey: false, graduated: hasProgress};
-          }
-          if (saved && LL_MODE_TRAFFIC[saved.mode] && LL_TRAFFIC_RANK[saved.traffic] !== undefined && saved.wind in LL_WIND) llSettings = saved;
-          else llSettings = llSchool.graduated ? {mode: "pilot", traffic: "normal", wind: "calm"} : {mode: "rookie", traffic: "slow", wind: "calm"};
-          if (!llSchool.graduated) llSettings.mode = "rookie";
+          if (saved && LL_MODE_TRAFFIC[saved.mode] &&
+              LL_TRAFFIC_RANK[saved.traffic] !== undefined && saved.wind in LL_WIND)
+            llSettings = saved;
+          else llSettings = {mode: "pilot", traffic: "normal", wind: "calm"};
           llFlight = {...llSettings};
           llSaveSettings(); llSyncControls(); llApplyModeRestrictions();
           const onChange = (apply) => (e) => {
@@ -5177,7 +5131,7 @@ body.landscape-menu-open #landscapeMenuBackdrop{display:block!important;z-index:
           document.getElementById("llMode").addEventListener("change", onChange(v => { llSettings = {...llSettings, mode: v, traffic: LL_MODE_TRAFFIC[v]}; }));
           document.getElementById("llTraffic").addEventListener("change", onChange(v => { llSettings = {...llSettings, traffic: v}; }));
           document.getElementById("llWind").addEventListener("change", onChange(v => { llSettings = {...llSettings, wind: v}; }));
-          // Keep Rookie restrictions in place after the game's own menu refreshes.
+          // Reapply Rookie world restrictions after menu refreshes.
           worldSelect.addEventListener("change", llApplyModeRestrictions);
           aircraftSelect.addEventListener("change", llApplyModeRestrictions);
         }
